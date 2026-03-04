@@ -1,0 +1,59 @@
+{
+  "name": "openclaws",
+  "version": "0.1.0",
+  "description": "龙虾军团管理系统 - OpenClaw 多智能体协作平台",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "postinstall": "electron-rebuild --only better-sqlite3,bufferutil,utf-8-validate"
+  },
+  "dependencies": {
+    "@koa/cors": "^5.0.0",
+    "@koa/router": "^15.0.0",
+    "better-sqlite3": "^11.0.0",
+    "dockerode": "^4.0.0",
+    "koa": "^3.0.0",
+    "koa-bodyparser": "^4.4.1",
+    "koa-static": "^5.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@egoist/tailwindcss-icons": "^1.9.2",
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@electron/rebuild": "^4.0.3",
+    "@iconify-json/carbon": "^1.2.18",
+    "@iconify-json/svg-spinners": "^1.2.4",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/dockerode": "^3.3.31",
+    "@types/koa": "^2.15.0",
+    "@types/koa__cors": "^5.0.0",
+    "@types/koa__router": "^12.0.4",
+    "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa-static": "^4.0.4",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "electron": "^35.0.0",
+    "electron-vite": "^3.0.0",
+    "pinia": "^3.0.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.8.0",
+    "unplugin-icons": "^23.0.0",
+    "unplugin-vue-components": "^31.0.0",
+    "vite": "^6.3.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "vue-tsc": "^2.2.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.1.0",
+    "utf-8-validate": "^6.0.6"
+  }
+}
