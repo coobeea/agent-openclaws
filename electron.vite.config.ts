@@ -34,6 +34,11 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
+    server: {
+      port: 5173,
+      strictPort: false, // 如果端口被占用，不会自动切换，而是报错提示
+      host: '127.0.0.1'
+    },
     plugins: [
       vue(),
       tailwindcss(),

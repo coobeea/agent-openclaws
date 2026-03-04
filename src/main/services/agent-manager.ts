@@ -11,7 +11,7 @@ import { log } from '@main/utils/logger'
 export interface Agent {
   id: number
   name: string
-  role: 'master' | 'worker'
+  role: 'master' | 'worker' | 'qa'
   status: string
   container_id: string | null
   gateway_port: number | null
@@ -19,6 +19,7 @@ export interface Agent {
   workspace_path: string | null
   description: string
   gitea_repo: string | null
+  model: string | null
   health_ok: boolean
   created_at: string
   updated_at: string
@@ -31,7 +32,7 @@ const WORKSPACES_ROOT = () => {
   return custom ? custom : join(app.getPath('userData'), 'workspaces')
 }
 
-function ensureWorkspace(name: string, role: 'master' | 'worker', model?: string): string {
+function ensureWorkspace(name: string, role: 'master' | 'worker' | 'qa', model?: string, token?: string): string {
   const root = join(WORKSPACES_ROOT(), name)
   const configDir = join(root, '.openclaw')
   const workspaceDir = join(root, 'workspace')
@@ -49,12 +50,12 @@ function ensureWorkspace(name: string, role: 'master' | 'worker', model?: string
     writeFileSync(agentsPath, getAgentsMd(role), 'utf-8')
   }
 
-  const token = configStore.get('openclaw.gatewayToken') || randomBytes(16).toString('hex')
+  const resolvedToken = token || configStore.get('openclaw.gatewayToken') || randomBytes(16).toString('hex')
   const configPath = join(configDir, 'openclaw.json')
-  if (!existsSync(configPath)) {
-    const cfg = generateOpenClawJson({ agentName: name, role, gatewayToken: token, model })
-    writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8')
-  }
+  
+  // 总是覆盖或者如果不存在则创建，保证配置（如模型、token）是最新的
+  const cfg = generateOpenClawJson({ agentName: name, role, gatewayToken: resolvedToken, model })
+  writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8')
 
   return root
 }
@@ -76,7 +77,7 @@ export const agentManager = {
     return agents.get(id)
   },
 
-  create(name: string, role: 'master' | 'worker' = 'worker', description = '', giteaRepo = '', model?: string): Agent {
+  create(name: string, role: 'master' | 'worker' | 'qa' = 'worker', description = '', giteaRepo = '', model?: string): Agent {
     if (!giteaRepo) throw new Error('必须关联一个 Gitea 仓库')
     
     if (role === 'master') {
@@ -87,9 +88,9 @@ export const agentManager = {
     const dup = agents.find((a) => a.name === name)
     if (dup.length > 0) throw new Error(`名称 "${name}" 已存在`)
 
-    const ws = ensureWorkspace(name, role, model)
     const port = nextGatewayPort()
     const token = randomBytes(16).toString('hex')
+    const ws = ensureWorkspace(name, role, model, token)
 
     return agents.insert({
       name,
@@ -101,6 +102,7 @@ export const agentManager = {
       workspace_path: ws,
       description,
       gitea_repo: giteaRepo || null,
+      model: model || null,
       health_ok: false,
     } as Omit<Agent, 'id'>)
   },
@@ -121,9 +123,9 @@ export const agentManager = {
     const agent = agents.get(id)
     if (!agent) throw new Error('Agent not found')
 
-    const ws = ensureWorkspace(agent.name, agent.role)
     const port = agent.gateway_port || nextGatewayPort()
     const token = agent.gateway_token || randomBytes(16).toString('hex')
+    const ws = ensureWorkspace(agent.name, agent.role, agent.model || undefined, token)
 
     try {
       const giteaUrl = configStore.get('gitea.url') || 'http://localhost:13000'
@@ -133,6 +135,8 @@ export const agentManager = {
         OPENCLAW_GATEWAY_TOKEN: token,
         GITEA_URL: giteaUrl.replace('localhost', 'host.docker.internal'),
         GITEA_TOKEN: giteaToken,
+        AGENT_NAME: agent.name,
+        AGENT_ID: agent.id.toString(),
       }
 
       const info = await dockerManager.createOpenClawContainer(agent.name, port, ws, env)

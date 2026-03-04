@@ -1,0 +1,110 @@
+
+> openclaws@0.1.0 dev
+> electron-vite dev
+
+vite v6.4.1 building SSR bundle for development...
+transforming...
+✓ 314 modules transformed.
+node_modules/http-assert/node_modules/depd/index.js (222:21): Use of eval in "node_modules/http-assert/node_modules/depd/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+node_modules/resolve-path/node_modules/depd/index.js (222:21): Use of eval in "node_modules/resolve-path/node_modules/depd/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+node_modules/koa-send/node_modules/depd/index.js (222:21): Use of eval in "node_modules/koa-send/node_modules/depd/index.js" is strongly discouraged as it poses security risks and may cause issues with minification.
+rendering chunks...
+out/main/index.js  1,497.88 kB
+✓ built in 626ms
+
+build the electron main process successfully
+
+-----
+
+vite v6.4.1 building SSR bundle for development...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.js  0.27 kB
+✓ built in 5ms
+
+build the electron preload files successfully
+
+-----
+
+dev server running for the electron renderer process at:
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+
+start electron app...
+
+[OpenClaws] Electron ready
+[OpenClaws] Data directory: /Users/lifeng/Library/Application Support/openclaws/data
+[OpenClaws] Dev proxy -> http://localhost:5173
+[OpenClaws] HttpServer started
+[OpenClaws] Registered method group: system (2 methods)
+[OpenClaws] Registered method group: agents (14 methods)
+[OpenClaws] Registered method group: tasks (7 methods)
+[OpenClaws] Registered method group: gitea (9 methods)
+[OpenClaws] Registered method group: settings (4 methods)
+[OpenClaws] Registered method group: image (2 methods)
+[OpenClaws] Registered method group: models (2 methods)
+[OpenClaws] GatewayServer started on /gateway/ws
+[OpenClaws] Gateway started with 40 methods
+[OpenClaws] Gateway started
+[OpenClaws] Health monitor started
+[OpenClaws] Main window created
+[OpenClaws] HttpServer listening on http://127.0.0.1:8765
+[OpenClaws] WS client connected: 1da8a3fb-4683-4ea1-838d-84e6de70a270
+[OpenClaws] Docker: using socket /var/run/docker.sock
+[OpenClaws] [LobsterHub] New message in global from Gitea 机器人: 【Gitea 广播 - Issue opened】
+标题: Test Issue
+编号: #1
+链接
+[OpenClaws] WS client connected: 592c8e89-fb65-4b84-9b6b-4bce40c5328f
+[OpenClaws] WS client disconnected: 592c8e89-fb65-4b84-9b6b-4bce40c5328f
+[OpenClaws] WS client connected: e15c4ec5-6677-4e1f-8035-d6bd6d52b693
+[OpenClaws] WS client disconnected: e15c4ec5-6677-4e1f-8035-d6bd6d52b693
+[OpenClaws] WS client connected: da1f6f87-5ecd-4a32-b31c-f406f4a96867
+[OpenClaws] WS client disconnected: da1f6f87-5ecd-4a32-b31c-f406f4a96867
+[OpenClaws] WS client connected: 10cd601d-0b7b-461b-a1b6-aa4bc6c15b59
+[OpenClaws] WS client disconnected: 10cd601d-0b7b-461b-a1b6-aa4bc6c15b59
+[OpenClaws] WS client connected: e10b09cb-2edb-4bb8-b1b3-e01ade2d3207
+[OpenClaws] WS client disconnected: e10b09cb-2edb-4bb8-b1b3-e01ade2d3207
+[OpenClaws] WS client connected: d27c8690-add6-4331-a73d-abc9038a0802
+[OpenClaws] WS client disconnected: d27c8690-add6-4331-a73d-abc9038a0802
+[OpenClaws] WS client connected: 96b26010-5329-4fef-af4c-6ea93c420152
+[OpenClaws] WS client disconnected: 96b26010-5329-4fef-af4c-6ea93c420152
+[OpenClaws] WS client connected: 60aaebdd-ec65-41a0-839b-064e3c4509e8
+[OpenClaws] WS client disconnected: 60aaebdd-ec65-41a0-839b-064e3c4509e8
+[OpenClaws] WS client connected: 5ab9d422-f0e6-456c-a757-6030f258dc89
+[OpenClaws] WS client disconnected: 5ab9d422-f0e6-456c-a757-6030f258dc89
+[OpenClaws] WS client connected: bac26ed9-5ecc-44a3-8e34-6de55ac86c16
+[OpenClaws] WS client disconnected: bac26ed9-5ecc-44a3-8e34-6de55ac86c16
+[OpenClaws] WS client connected: 5cb6ff21-d393-4b74-aa9b-81c30e11c055
+[OpenClaws] WS client disconnected: 5cb6ff21-d393-4b74-aa9b-81c30e11c055
+[OpenClaws] WS client connected: 24bdcb1c-5904-485e-9a67-547d4ecccae4
+[OpenClaws] WS client disconnected: 24bdcb1c-5904-485e-9a67-547d4ecccae4
+[OpenClaws] WS client connected: be45d631-c0cf-4214-ac83-4e2c22b1a9a0
+[OpenClaws] WS client disconnected: be45d631-c0cf-4214-ac83-4e2c22b1a9a0
+[OpenClaws] WS client connected: 9555def8-16bc-4493-97de-f96ad1962778
+[OpenClaws] WS client disconnected: 9555def8-16bc-4493-97de-f96ad1962778
+[OpenClaws] WS client connected: 7e39d7cb-f410-443a-a741-7f0615301141
+[OpenClaws] WS client disconnected: 7e39d7cb-f410-443a-a741-7f0615301141
+[OpenClaws] Method gitea.repos error: TypeError: fetch failed
+    at node:internal/deps/undici/undici:13510:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async request (/Users/lifeng/git/git-claw/agent-openclaws/out/main/index.js:28568:15)
+    at async Object.listRepos (/Users/lifeng/git/git-claw/agent-openclaws/out/main/index.js:28578:18)
+    at async Gateway.handleMessage (/Users/lifeng/git/git-claw/agent-openclaws/out/main/index.js:28412:22)
+    at async WebSocket.<anonymous> (/Users/lifeng/git/git-claw/agent-openclaws/out/main/index.js:28313:11) {
+  [cause]: AggregateError [ECONNREFUSED]: 
+      at internalConnectMultiple (node:net:1139:18)
+      at afterConnectMultiple (node:net:1714:7) {
+    code: 'ECONNREFUSED',
+    [errors]: [ [Error], [Error] ]
+  }
+}
+[OpenClaws] Container created: openclaws-master-001 (port 18800)
+2026-03-05 05:49:17.209 Electron[8059:40692335] TSM AdjustCapsLockLEDForKeyTransitionHandling - _ISSetPhysicalKeyboardCapsLockLED Inhibit
+2026-03-05 05:49:17.217 Electron[8059:40692335] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+[OpenClaws] WS client connected: 7369e95f-862a-48b4-b33d-f67fd811fb68
+[OpenClaws] WS client disconnected: 7369e95f-862a-48b4-b33d-f67fd811fb68
+[OpenClaws] WS client connected: d8931ade-29f7-4d30-96db-c534c5e6aa2d
+[OpenClaws] WS client disconnected: d8931ade-29f7-4d30-96db-c534c5e6aa2d

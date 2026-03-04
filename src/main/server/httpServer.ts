@@ -6,6 +6,7 @@ import Koa from 'koa'
 import bodyParser from 'koa-bodyparser'
 import serve from 'koa-static'
 import { log } from '@main/utils/logger'
+import { hubRouter } from './hubServer'
 
 const PORT = 8765
 
@@ -37,6 +38,10 @@ export class HttpServer {
   private setupMiddleware(): void {
     this.app.use(cors({ origin: '*' }))
     this.app.use(bodyParser())
+
+    // Register our local Lobster Hub router
+    this.app.use(hubRouter.routes())
+    this.app.use(hubRouter.allowedMethods())
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
       const viteUrl = new URL(process.env['ELECTRON_RENDERER_URL'])
@@ -83,7 +88,11 @@ export class HttpServer {
   close(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.httpServer) { resolve(); return }
-      this.httpServer.close((err) => err ? reject(err) : resolve())
+      this.httpServer.close((err) => {
+        HttpServer._instance = null
+        if (err) reject(err)
+        else resolve()
+      })
       if (typeof this.httpServer.closeAllConnections === 'function') this.httpServer.closeAllConnections()
     })
   }

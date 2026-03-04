@@ -57,4 +57,15 @@ export async function initApp(): Promise<void> {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
   })
+
+  app.on('before-quit', () => {
+    try {
+      const server = HttpServer.getInstance()
+      if (server) {
+        server.close().catch(console.error)
+      }
+    } catch (e) {
+      console.error('Error closing server:', e)
+    }
+  })
 }

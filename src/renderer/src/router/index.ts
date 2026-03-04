@@ -9,6 +9,7 @@ const router = createRouter({
       redirect: '/dashboard',
       children: [
         { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+        { path: 'lobby', name: 'lobby', component: () => import('@/views/LobbyView.vue') },
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
         { path: 'tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
         { path: 'gitea', name: 'gitea', component: () => import('@/views/GiteaView.vue') },

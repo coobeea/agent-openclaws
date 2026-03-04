@@ -1,4 +1,5 @@
 import { configStore } from '@main/services/config-store'
+import { modelsStore } from '@main/services/models-store'
 
 const MASTER_SOUL = `# SOUL.md - Master Lobster
 
@@ -78,19 +79,51 @@ Find assigned Gitea Issues, implement the required changes, write tests, and sub
 - Never force-push to shared branches
 `
 
-export function getSoulMd(role: 'master' | 'worker'): string {
-  return role === 'master' ? MASTER_SOUL : WORKER_SOUL
+const QA_SOUL = `# SOUL.md - QA Lobster
+
+You are a **QA Lobster (Quality Assurance & Code Reviewer)** in the OpenClaws army. You are a **meticulous reviewer and tester**.
+
+## Your Mission
+
+Review PRs submitted by Worker Lobsters, look for edge cases, missing tests, and architectural flaws, and approve or reject them. You ensure the main branch remains stable and high-quality.
+
+## Workflow
+
+1. **Monitor Gitea** for new Pull Requests.
+2. **Review the PR**:
+   - Check if the PR fulfills the original Issue requirements.
+   - Look for logical bugs, unhandled errors, and security issues.
+   - Ensure the code follows conventions.
+3. **Test the PR** (optional but recommended):
+   - Pull the PR branch locally and run tests.
+4. **Provide Feedback**:
+   - Approve if it looks perfect.
+   - Request changes if something is wrong.
+5. **Monitor Chat**: Participate in the Lobster Hub if workers have architectural questions.
+
+## Principles
+
+- Be strict but constructive.
+- Catch bugs before they reach main.
+- Ensure every feature has corresponding tests.
+`
+
+export function getSoulMd(role: 'master' | 'worker' | 'qa'): string {
+  if (role === 'master') return MASTER_SOUL
+  if (role === 'qa') return QA_SOUL
+  return WORKER_SOUL
 }
 
-export function getAgentsMd(role: 'master' | 'worker'): string {
-  return `# AGENTS.md - ${role === 'master' ? 'Master' : 'Worker'} Lobster Workspace
+export function getAgentsMd(role: 'master' | 'worker' | 'qa'): string {
+  const roleName = role === 'master' ? 'Master' : (role === 'qa' ? 'QA' : 'Worker')
+  return `# AGENTS.md - ${roleName} Lobster Workspace
 
 ## Every Session
 
 Before doing anything else:
 
 1. Read SOUL.md - this defines your role
-2. Check Gitea for ${role === 'master' ? 'new requirements and Worker PR status' : 'assigned Issues to work on'}
+2. Check Gitea for ${role === 'master' ? 'new requirements and Worker PR status' : (role === 'qa' ? 'new PRs to review' : 'assigned Issues to work on')}
 3. Read memory/ for recent context if it exists
 
 ## Safety
@@ -103,20 +136,36 @@ Before doing anything else:
 
 export interface OpenClawJsonOptions {
   agentName: string
-  role: 'master' | 'worker'
+  role: 'master' | 'worker' | 'qa'
   gatewayToken?: string
   model?: string
 }
 
 export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, unknown> {
-  const model = opts.model || 'sonnet'
+  const modelStr = opts.model || 'openai|gpt-4o'
+  const [providerId, modelId] = modelStr.includes('|') ? modelStr.split('|') : ['openai', modelStr]
+  
+  const providers = modelsStore.getProviders()
+  const provider = providers.find(p => p.id === providerId)
+
   const gatewayToken = opts.gatewayToken || configStore.get('openclaw.gatewayToken') || ''
 
   const config: Record<string, unknown> = {
+    plugins: {
+      entries: {
+        lobster: {
+          enabled: true
+        }
+      }
+    },
     agents: {
       defaults: {
-        model,
-        maxTurns: opts.role === 'master' ? 20 : 50,
+        model: {
+          primary: `${providerId}/${modelId}`,
+        },
+        models: {
+          [`${providerId}/${modelId}`]: {}
+        }
       },
     },
     session: {
@@ -124,8 +173,70 @@ export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, 
     },
   }
 
+  if (provider) {
+    let apiKey = provider.apiKey
+    
+    let apiType = provider.api
+    // 映射我们定义的 api 类型到 openclaw 支持的类型
+    if (apiType === 'openai-compatible' || apiType === 'openai') {
+      apiType = 'openai-completions'
+    }
+
+    const matchedModel = provider.models?.find(m => m.id === modelId)
+    
+    const providerConfig: any = {
+      baseUrl: provider.baseUrl,
+      api: apiType,
+      models: [
+        {
+          id: modelId,
+          name: matchedModel?.name || modelId,
+          reasoning: false,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 128000,
+          maxTokens: 8192,
+        }
+      ]
+    }
+
+    if (apiKey) {
+      providerConfig.apiKey = apiKey
+    } else {
+      // 如果没有填写 API Key，仍然要生成 apiKey 字段，但是不要用 ${} 环境变量占位符
+      // 改用一个默认空字符串，或者直接留空，OpenClaw 会报错但不会因为缺少环境变量配置而崩溃启动不了
+      providerConfig.apiKey = 'sk-no-key-provided'
+    }
+
+    ;(config as any).models = {
+      mode: 'merge',
+      providers: {
+        [providerId]: providerConfig
+      }
+    }
+  }
+
   if (gatewayToken) {
-    ;(config as any).gateway = { token: gatewayToken }
+    ;(config as any).gateway = { 
+      auth: { token: gatewayToken },
+      bind: "lan", 
+      mode: "local",
+      controlUi: { 
+        dangerouslyAllowHostHeaderOriginFallback: true,
+        dangerouslyDisableDeviceAuth: true,
+        allowInsecureAuth: true
+      }
+    }
+  } else {
+    ;(config as any).gateway = { 
+      bind: "lan",
+      mode: "local",
+      controlUi: { 
+        dangerouslyAllowHostHeaderOriginFallback: true,
+        dangerouslyDisableDeviceAuth: true,
+        allowInsecureAuth: true
+      }
+    }
   }
 
   return config

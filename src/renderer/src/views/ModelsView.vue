@@ -97,135 +97,194 @@ function removeModel(p: Provider, index: number) {
 
 <template>
   <div class="h-full flex flex-col">
-    <div class="flex items-center justify-between mb-6 shrink-0">
-      <div>
-        <h1 class="text-2xl font-bold">模型配置</h1>
-        <p class="text-sm text-muted-foreground mt-1">管理支持的 AI 模型供应商、API Key 以及对应的模型列表。</p>
+    <!-- Page Header with Enhanced Style -->
+    <div class="flex items-center justify-between mb-6 pb-4 border-b border-border/50 shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+          <span class="i-carbon-machine-learning-model text-2xl text-primary"></span>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold">模型配置</h1>
+          <p class="text-sm text-muted-foreground mt-0.5">管理 AI 模型供应商与模型列表</p>
+        </div>
       </div>
-      <div class="flex gap-3">
+      <div class="flex gap-2.5">
         <button
-          class="px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
+          class="px-5 py-2.5 border border-border/50 rounded-xl text-sm font-medium hover:bg-accent hover:border-border transition-all hover:shadow-sm inline-flex items-center gap-2"
           @click="addProvider"
         >
-          <span class="i-carbon-add" /> 添加供应商
+          <span class="i-carbon-add text-base" /> 添加供应商
         </button>
         <button
           id="save-btn"
-          class="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50"
+          class="px-5 py-2.5 bg-gradient-to-r from-success to-success/90 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:scale-105 transition-all shadow-md inline-flex items-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
           :disabled="saving"
           @click="saveAll"
         >
-          <span class="i-carbon-save" /> 保存配置
+          <span class="i-carbon-save text-base" /> 
+          <span v-if="!saving">保存配置</span>
+          <span v-else>保存中...</span>
         </button>
       </div>
     </div>
 
     <div v-if="loading" class="flex-1 flex items-center justify-center text-muted-foreground">
-      <span class="i-svg-spinners-ring-resize text-3xl" />
+      <div class="flex flex-col items-center gap-3">
+        <span class="i-svg-spinners-ring-resize text-4xl text-primary" />
+        <p class="text-sm">加载模型配置...</p>
+      </div>
     </div>
 
     <div v-else class="flex-1 flex gap-6 min-h-0">
-      <!-- Left sidebar: Providers List -->
-      <div class="w-64 bg-card border border-border rounded-xl flex flex-col overflow-hidden shrink-0">
-        <div class="p-3 border-b border-border bg-surface-variant/50">
-          <h2 class="text-sm font-semibold text-foreground">供应商列表</h2>
+      <!-- Left sidebar: Providers List with Enhanced Style -->
+      <div class="w-72 bg-card border border-border/50 rounded-2xl flex flex-col overflow-hidden shrink-0 shadow-sm">
+        <div class="p-4 border-b border-border/30 bg-gradient-to-r from-surface-variant/40 to-transparent">
+          <div class="flex items-center gap-2">
+            <span class="i-carbon-settings-services text-lg text-primary"></span>
+            <h2 class="text-sm font-bold">供应商列表</h2>
+          </div>
         </div>
-        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+        <div class="flex-1 overflow-y-auto p-3 space-y-2">
           <button
             v-for="p in providers" :key="p.id"
-            class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-between group"
-            :class="selectedProvider?.id === p.id ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'"
+            class="w-full text-left px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-between group"
+            :class="selectedProvider?.id === p.id 
+              ? 'bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-sm border border-primary/20' 
+              : 'text-foreground hover:bg-accent/60 hover:shadow-sm border border-transparent'"
             @click="selectedProvider = p"
           >
-            <div class="flex items-center gap-2 overflow-hidden">
-              <span class="w-2 h-2 rounded-full shrink-0" :class="p.enabled ? 'bg-success' : 'bg-muted-foreground'" />
-              <span class="truncate">{{ p.name || '未命名' }}</span>
+            <div class="flex items-center gap-2.5 overflow-hidden">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" :class="p.enabled ? 'bg-success animate-pulse' : 'bg-muted-foreground'" />
+              <span class="truncate">{{ p.name || '未命名供应商' }}</span>
             </div>
             <span
               v-if="selectedProvider?.id === p.id"
-              class="i-carbon-trash-can opacity-0 group-hover:opacity-100 text-error/70 hover:text-error transition-all"
+              class="i-carbon-trash-can opacity-0 group-hover:opacity-100 text-error/70 hover:text-error transition-all p-1 rounded-lg hover:bg-error/10"
               @click.stop="removeProvider(p)"
+              title="删除供应商"
             />
           </button>
           
-          <div v-if="providers.length === 0" class="text-center py-10 text-muted-foreground text-sm">
-            暂无供应商
+          <div v-if="providers.length === 0" class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <div class="w-14 h-14 rounded-2xl bg-surface-variant/50 flex items-center justify-center mb-3">
+              <span class="i-carbon-settings-services text-2xl opacity-30"></span>
+            </div>
+            <p class="text-xs">暂无供应商</p>
           </div>
         </div>
       </div>
 
-      <!-- Right panel: Provider Details -->
-      <div v-if="selectedProvider" class="flex-1 bg-card border border-border rounded-xl overflow-y-auto p-6">
-        <div class="max-w-2xl">
-          <div class="flex items-center justify-between mb-6">
-            <h2 class="text-lg font-semibold flex items-center gap-2">
-              <span class="i-carbon-api-1 text-primary" /> 基本信息
+      <!-- Right panel: Provider Details with Enhanced Style -->
+      <div v-if="selectedProvider" class="flex-1 bg-card border border-border/50 rounded-2xl overflow-y-auto p-7 shadow-sm">
+        <div class="max-w-3xl">
+          <div class="flex items-center justify-between mb-7 pb-4 border-b border-border/30">
+            <h2 class="text-lg font-bold flex items-center gap-2.5">
+              <span class="i-carbon-api-1 text-xl text-primary" /> 基本信息
             </h2>
-            <label class="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" v-model="selectedProvider.enabled" class="rounded border-input text-primary focus:ring-primary" />
+            <label class="flex items-center gap-2.5 px-4 py-2 bg-surface-variant/50 rounded-xl text-sm font-medium cursor-pointer hover:bg-surface-variant transition-colors">
+              <input type="checkbox" v-model="selectedProvider.enabled" class="w-4 h-4 rounded border-input text-primary focus:ring-primary accent-primary" />
               <span>启用该供应商</span>
             </label>
           </div>
 
-          <div class="space-y-5">
-            <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-6">
+            <div class="grid grid-cols-2 gap-5">
               <div>
-                <label class="block text-sm font-medium mb-1.5 text-muted-foreground">供应商标识 (ID)</label>
-                <input v-model="selectedProvider.id" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <label class="block text-sm font-semibold mb-2 text-foreground/90">供应商标识 (ID)</label>
+                <input 
+                  v-model="selectedProvider.id" 
+                  class="w-full px-4 py-2.5 bg-input-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all hover:border-input font-mono" 
+                />
               </div>
               <div>
-                <label class="block text-sm font-medium mb-1.5 text-muted-foreground">显示名称</label>
-                <input v-model="selectedProvider.name" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <label class="block text-sm font-semibold mb-2 text-foreground/90">显示名称</label>
+                <input 
+                  v-model="selectedProvider.name" 
+                  class="w-full px-4 py-2.5 bg-input-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all hover:border-input" 
+                />
               </div>
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-1.5 text-muted-foreground">Base URL</label>
-              <input v-model="selectedProvider.baseUrl" placeholder="https://api.openai.com/v1" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              <label class="block text-sm font-semibold mb-2 text-foreground/90">Base URL</label>
+              <input 
+                v-model="selectedProvider.baseUrl" 
+                placeholder="https://api.openai.com/v1" 
+                class="w-full px-4 py-2.5 bg-input-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all hover:border-input font-mono" 
+              />
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-1.5 text-muted-foreground">API Key</label>
+              <label class="block text-sm font-semibold mb-2 text-foreground/90">API Key</label>
               <div class="relative">
-                <input v-model="selectedProvider.apiKey" type="password" placeholder="sk-..." class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono" />
-                <span class="absolute right-3 top-2.5 i-carbon-password text-muted-foreground" />
+                <input 
+                  v-model="selectedProvider.apiKey" 
+                  type="password" 
+                  placeholder="sk-..." 
+                  class="w-full px-4 py-2.5 pr-10 bg-input-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono transition-all hover:border-input" 
+                />
+                <span class="absolute right-3 top-3 i-carbon-password text-lg text-muted-foreground/50" />
               </div>
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-1.5 text-muted-foreground">API 格式类型</label>
-              <select v-model="selectedProvider.api" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none">
-                <option value="openai-compatible">OpenAI 兼容格式 (推荐)</option>
-                <option value="openai">OpenAI 原生</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="gemini">Gemini</option>
+              <label class="block text-sm font-semibold mb-2 text-foreground/90">API 格式类型</label>
+              <select 
+                v-model="selectedProvider.api" 
+                class="w-full px-4 py-2.5 bg-input-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 appearance-none transition-all hover:border-input"
+              >
+                <option value="openai-compatible">🔌 OpenAI 兼容格式 (推荐)</option>
+                <option value="openai">🤖 OpenAI 原生</option>
+                <option value="anthropic">🧠 Anthropic</option>
+                <option value="gemini">✨ Gemini</option>
               </select>
             </div>
           </div>
 
-          <div class="mt-10 mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold flex items-center gap-2">
-              <span class="i-carbon-machine-learning-model text-primary" /> 可用模型 ({{ selectedProvider.models.length }})
+          <div class="mt-10 mb-5 flex items-center justify-between pb-4 border-b border-border/30">
+            <h2 class="text-lg font-bold flex items-center gap-2.5">
+              <span class="i-carbon-machine-learning-model text-xl text-info" /> 
+              <span>可用模型</span>
+              <span class="px-2 py-0.5 bg-info/10 text-info rounded-full text-xs font-medium">{{ selectedProvider.models.length }}</span>
             </h2>
-            <button class="text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1" @click="addModel(selectedProvider)">
-              <span class="i-carbon-add" /> 添加模型
+            <button 
+              class="px-4 py-2 bg-info/10 text-info hover:bg-info/20 rounded-xl text-sm font-medium transition-all hover:shadow-sm inline-flex items-center gap-1.5" 
+              @click="addModel(selectedProvider)"
+            >
+              <span class="i-carbon-add text-base" /> 添加模型
             </button>
           </div>
 
-          <div class="space-y-3 bg-surface border border-border rounded-xl p-4">
-            <div v-if="selectedProvider.models.length === 0" class="text-center py-6 text-muted-foreground text-sm">
-              尚未配置任何模型，请点击右上方添加
+          <div class="space-y-3 bg-surface-variant/30 border border-border/30 rounded-2xl p-5">
+            <div v-if="selectedProvider.models.length === 0" class="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <div class="w-14 h-14 rounded-2xl bg-surface-variant/50 flex items-center justify-center mb-3">
+                <span class="i-carbon-machine-learning-model text-2xl opacity-30"></span>
+              </div>
+              <p class="text-sm font-medium mb-1">尚未配置任何模型</p>
+              <p class="text-xs text-muted-foreground/70">点击右上方添加第一个模型</p>
             </div>
             
-            <div v-for="(m, idx) in selectedProvider.models" :key="idx" class="flex gap-3 items-start">
+            <div v-for="(m, idx) in selectedProvider.models" :key="idx" class="flex gap-3 items-start group">
               <div class="flex-1">
-                <input v-model="m.id" placeholder="模型 ID (如 qwen-plus)" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono" />
+                <input 
+                  v-model="m.id" 
+                  placeholder="模型 ID (如 qwen-plus)" 
+                  class="w-full px-4 py-2.5 bg-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 font-mono transition-all hover:border-input" 
+                />
               </div>
               <div class="flex-1">
-                <input v-model="m.name" placeholder="显示名称 (如 Qwen Plus)" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                <input 
+                  v-model="m.name" 
+                  placeholder="显示名称 (如 Qwen Plus)" 
+                  class="w-full px-4 py-2.5 bg-background border border-input/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all hover:border-input" 
+                />
               </div>
-              <button class="p-2.5 text-muted-foreground hover:text-error hover:bg-error/10 rounded-lg transition-colors shrink-0" @click="removeModel(selectedProvider, idx)">
-                <span class="i-carbon-trash-can" />
+              <button 
+                class="p-2.5 text-muted-foreground/50 hover:text-error hover:bg-error/15 rounded-xl transition-all shrink-0 opacity-0 group-hover:opacity-100" 
+                @click="removeModel(selectedProvider, idx)"
+                title="删除模型"
+              >
+                <span class="i-carbon-trash-can text-base" />
               </button>
             </div>
           </div>
