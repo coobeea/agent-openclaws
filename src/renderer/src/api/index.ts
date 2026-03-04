@@ -5,7 +5,7 @@ function gw() { return getGatewayClient() }
 export const agentsApi = {
   list: () => gw().request('agents.list'),
   get: (id: number) => gw().request('agents.get', { id }),
-  create: (data: { name: string; role?: string; description?: string; gitea_repo?: string }) => gw().request('agents.create', data),
+  create: (data: { name: string; role?: string; description?: string; gitea_repo?: string; model?: string }) => gw().request('agents.create', data),
   update: (id: number, data: Record<string, unknown>) => gw().request('agents.update', { id, ...data }),
   delete: (id: number) => gw().request('agents.delete', { id }),
   start: (id: number) => gw().request('agents.start', { id }),
@@ -50,6 +50,11 @@ export const settingsApi = {
 export const imageApi = {
   status: () => gw().request('image.status'),
   build: (opts?: Record<string, unknown>) => gw().request('image.build', opts || {}),
+}
+
+export const modelsApi = {
+  getProviders: () => gw().request('models.getProviders'),
+  saveProviders: (providers: any[]) => gw().request('models.saveProviders', { providers }),
 }
 
 export const systemApi = {

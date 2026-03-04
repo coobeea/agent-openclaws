@@ -12,6 +12,7 @@ const router = createRouter({
         { path: 'agents', name: 'agents', component: () => import('@/views/AgentsView.vue') },
         { path: 'tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
         { path: 'gitea', name: 'gitea', component: () => import('@/views/GiteaView.vue') },
+        { path: 'models', name: 'models', component: () => import('@/views/ModelsView.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
       ]
     }

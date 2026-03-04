@@ -17,7 +17,8 @@ export const agentsMethods: MethodGroup = {
       String(p.name),
       (p.role as 'master' | 'worker') || 'worker',
       String(p.description || ''),
-      String(p.gitea_repo || '')
+      String(p.gitea_repo || ''),
+      p.model ? String(p.model) : undefined
     ),
 
     delete: async (p) => {

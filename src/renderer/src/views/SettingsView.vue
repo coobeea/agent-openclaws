@@ -10,7 +10,7 @@ const loading = ref(true)
 const saving = ref(false)
 const saved = ref(false)
 
-const imageStatus = ref<{ exists: boolean; id?: string; size?: string; created?: string } | null>(null)
+const imageStatus = ref<{ exists: boolean; id?: string; size?: string; created?: string; dockerRunning?: boolean } | null>(null)
 const building = ref(false)
 const buildLog = ref('')
 
@@ -64,7 +64,7 @@ const fields = [
   ]},
   { section: 'OpenClaw 配置', icon: 'i-carbon-network-4', items: [
     { key: 'openclaw.sourcePath', label: 'OpenClaw 源码路径', placeholder: '/path/to/openclaw' },
-    { key: 'openclaw.defaultModel', label: '默认模型', placeholder: 'sonnet' },
+    { key: 'openclaw.workspaceBase', label: '工作区根目录', placeholder: '/path/to/workspaces' },
     { key: 'openclaw.gatewayPortBase', label: 'Gateway 端口基数', placeholder: '18800', type: 'number' },
     { key: 'openclaw.gatewayToken', label: 'Gateway Token', placeholder: '留空自动生成', type: 'password' },
   ]},
@@ -137,7 +137,10 @@ const fields = [
         <div class="flex items-center justify-between mb-3">
           <div>
             <p class="text-sm">
-              <span v-if="imageStatus?.exists" class="text-success inline-flex items-center gap-1">
+              <span v-if="imageStatus?.dockerRunning === false" class="text-error inline-flex items-center gap-1">
+                <span class="i-carbon-error" /> Docker 未运行
+              </span>
+              <span v-else-if="imageStatus?.exists" class="text-success inline-flex items-center gap-1">
                 <span class="i-carbon-checkmark-filled" /> 镜像已就绪
               </span>
               <span v-else class="text-warning inline-flex items-center gap-1">

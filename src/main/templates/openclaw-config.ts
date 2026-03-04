@@ -109,7 +109,7 @@ export interface OpenClawJsonOptions {
 }
 
 export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, unknown> {
-  const model = opts.model || configStore.get('openclaw.defaultModel') || 'sonnet'
+  const model = opts.model || 'sonnet'
   const gatewayToken = opts.gatewayToken || configStore.get('openclaw.gatewayToken') || ''
 
   const config: Record<string, unknown> = {

@@ -2,22 +2,36 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path'
 import { app } from 'electron'
 import { randomBytes } from 'crypto'
-import { getDb } from './database'
+import { JsonlCollection } from './jsonl-store'
 import { dockerManager } from './docker-manager'
 import { configStore } from './config-store'
 import { getSoulMd, getAgentsMd, generateOpenClawJson } from '@main/templates/openclaw-config'
 import { log } from '@main/utils/logger'
 
-const WORKSPACES_ROOT = () => join(app.getPath('userData'), 'workspaces')
+export interface Agent {
+  id: number
+  name: string
+  role: 'master' | 'worker'
+  status: string
+  container_id: string | null
+  gateway_port: number | null
+  gateway_token: string | null
+  workspace_path: string | null
+  description: string
+  gitea_repo: string | null
+  health_ok: boolean
+  created_at: string
+  updated_at: string
+}
 
-/**
- * Initialize an OpenClaw-compliant workspace for an agent.
- * Structure:
- *   workspaces/{name}/.openclaw/openclaw.json
- *   workspaces/{name}/workspace/SOUL.md
- *   workspaces/{name}/workspace/AGENTS.md
- */
-function ensureWorkspace(name: string, role: 'master' | 'worker', opts?: { giteaRepo?: string }): string {
+const agents = new JsonlCollection<Agent>('agents.jsonl')
+
+const WORKSPACES_ROOT = () => {
+  const custom = configStore.get('openclaw.workspaceBase')
+  return custom ? custom : join(app.getPath('userData'), 'workspaces')
+}
+
+function ensureWorkspace(name: string, role: 'master' | 'worker', model?: string): string {
   const root = join(WORKSPACES_ROOT(), name)
   const configDir = join(root, '.openclaw')
   const workspaceDir = join(root, 'workspace')
@@ -38,12 +52,8 @@ function ensureWorkspace(name: string, role: 'master' | 'worker', opts?: { gitea
   const token = configStore.get('openclaw.gatewayToken') || randomBytes(16).toString('hex')
   const configPath = join(configDir, 'openclaw.json')
   if (!existsSync(configPath)) {
-    const openclawConfig = generateOpenClawJson({
-      agentName: name,
-      role,
-      gatewayToken: token,
-    })
-    writeFileSync(configPath, JSON.stringify(openclawConfig, null, 2), 'utf-8')
+    const cfg = generateOpenClawJson({ agentName: name, role, gatewayToken: token, model })
+    writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8')
   }
 
   return root
@@ -51,62 +61,67 @@ function ensureWorkspace(name: string, role: 'master' | 'worker', opts?: { gitea
 
 function nextGatewayPort(): number {
   const base = parseInt(configStore.get('openclaw.gatewayPortBase') || '18800', 10)
-  const agents = getDb().prepare('SELECT gateway_port FROM agents WHERE gateway_port IS NOT NULL ORDER BY gateway_port DESC LIMIT 1').get() as { gateway_port: number } | undefined
-  return agents ? agents.gateway_port + 1 : base
+  const all = agents.all()
+  if (all.length === 0) return base
+  const maxPort = all.reduce((m, a) => Math.max(m, a.gateway_port || 0), 0)
+  return maxPort >= base ? maxPort + 1 : base
 }
 
 export const agentManager = {
-  list(): any[] {
-    return getDb().prepare('SELECT * FROM agents ORDER BY created_at DESC').all()
+  list(): Agent[] {
+    return agents.all().sort((a, b) => b.created_at.localeCompare(a.created_at))
   },
 
-  get(id: number): any {
-    return getDb().prepare('SELECT * FROM agents WHERE id = ?').get(id)
+  get(id: number): Agent | undefined {
+    return agents.get(id)
   },
 
-  create(name: string, role: 'master' | 'worker' = 'worker', description = '', giteaRepo = ''): any {
+  create(name: string, role: 'master' | 'worker' = 'worker', description = '', giteaRepo = '', model?: string): Agent {
+    if (!giteaRepo) throw new Error('必须关联一个 Gitea 仓库')
+    
     if (role === 'master') {
-      const existing = getDb().prepare("SELECT id FROM agents WHERE role = 'master' LIMIT 1").get()
-      if (existing) throw new Error('只能有一个 Master 龙虾')
+      const existing = agents.find((a) => a.role === 'master' && a.gitea_repo === giteaRepo)
+      if (existing.length > 0) throw new Error(`仓库 ${giteaRepo} 已经有一个 Master 龙虾了`)
     }
 
-    const ws = ensureWorkspace(name, role, { giteaRepo })
+    const dup = agents.find((a) => a.name === name)
+    if (dup.length > 0) throw new Error(`名称 "${name}" 已存在`)
+
+    const ws = ensureWorkspace(name, role, model)
     const port = nextGatewayPort()
     const token = randomBytes(16).toString('hex')
 
-    const info = getDb().prepare(
-      'INSERT INTO agents (name, role, description, workspace_path, gateway_port, gateway_token, gitea_repo) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(name, role, description, ws, port, token, giteaRepo || null)
-    return this.get(Number(info.lastInsertRowid))
+    return agents.insert({
+      name,
+      role,
+      status: 'stopped',
+      container_id: null,
+      gateway_port: port,
+      gateway_token: token,
+      workspace_path: ws,
+      description,
+      gitea_repo: giteaRepo || null,
+      health_ok: false,
+    } as Omit<Agent, 'id'>)
   },
 
   delete(id: number): boolean {
-    const agent = this.get(id)
+    const agent = agents.get(id)
     if (agent?.container_id) {
       dockerManager.removeContainer(agent.container_id, true).catch(() => {})
     }
-    return getDb().prepare('DELETE FROM agents WHERE id = ?').run(id).changes > 0
+    return agents.delete(id)
   },
 
-  update(id: number, data: Record<string, unknown>): any {
-    const allowed = ['name', 'description', 'status', 'container_id', 'gateway_port', 'gateway_token', 'gitea_repo', 'health_ok']
-    const sets: string[] = []
-    const vals: unknown[] = []
-    for (const [k, v] of Object.entries(data)) {
-      if (allowed.includes(k)) { sets.push(`${k} = ?`); vals.push(v) }
-    }
-    if (sets.length === 0) return this.get(id)
-    sets.push("updated_at = datetime('now')")
-    vals.push(id)
-    getDb().prepare(`UPDATE agents SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
-    return this.get(id)
+  update(id: number, data: Partial<Agent>): Agent | undefined {
+    return agents.update(id, data)
   },
 
-  async startWorker(id: number): Promise<any> {
-    const agent = this.get(id)
+  async startWorker(id: number): Promise<Agent> {
+    const agent = agents.get(id)
     if (!agent) throw new Error('Agent not found')
 
-    const ws = ensureWorkspace(agent.name, agent.role as 'master' | 'worker')
+    const ws = ensureWorkspace(agent.name, agent.role)
     const port = agent.gateway_port || nextGatewayPort()
     const token = agent.gateway_token || randomBytes(16).toString('hex')
 
@@ -122,38 +137,30 @@ export const agentManager = {
 
       const info = await dockerManager.createOpenClawContainer(agent.name, port, ws, env)
       await dockerManager.startContainer(info.fullId)
-      return this.update(id, { status: 'running', container_id: info.fullId, gateway_port: port, gateway_token: token })
+      return agents.update(id, { status: 'running', container_id: info.fullId, gateway_port: port, gateway_token: token })!
     } catch (err: any) {
       log.error(`Failed to start agent ${agent.name}:`, err.message)
-      this.update(id, { status: 'error' })
+      agents.update(id, { status: 'error' })
       throw err
     }
   },
 
-  async stopWorker(id: number): Promise<any> {
-    const agent = this.get(id)
-    if (!agent?.container_id) return null
+  async stopWorker(id: number): Promise<Agent | undefined> {
+    const agent = agents.get(id)
+    if (!agent?.container_id) return undefined
     await dockerManager.stopContainer(agent.container_id)
-    return this.update(id, { status: 'stopped', health_ok: 0 })
+    return agents.update(id, { status: 'stopped', health_ok: false })
   },
 
   listFiles(name: string): string[] {
     const wsDir = join(WORKSPACES_ROOT(), name, 'workspace')
-    if (!existsSync(wsDir)) {
-      const legacyDir = join(WORKSPACES_ROOT(), name)
-      if (!existsSync(legacyDir)) return []
-      return readdirSync(legacyDir).filter(f => !f.startsWith('.'))
-    }
-    return readdirSync(wsDir).filter(f => !f.startsWith('.'))
+    if (!existsSync(wsDir)) return []
+    return readdirSync(wsDir).filter((f) => !f.startsWith('.'))
   },
 
   readFile(name: string, filename: string): string | null {
-    const wsDir = join(WORKSPACES_ROOT(), name, 'workspace')
-    let fp = join(wsDir, filename)
-    if (!existsSync(fp)) {
-      fp = join(WORKSPACES_ROOT(), name, filename)
-      if (!existsSync(fp)) return null
-    }
+    const fp = join(WORKSPACES_ROOT(), name, 'workspace', filename)
+    if (!existsSync(fp)) return null
     return readFileSync(fp, 'utf-8')
   },
 

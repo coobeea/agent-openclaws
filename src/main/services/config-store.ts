@@ -1,63 +1,47 @@
-import { getDb } from './database'
+import { JsonStore } from './jsonl-store'
 import { log } from '@main/utils/logger'
 
 const DEFAULTS: Record<string, string> = {
   'gitea.url': 'http://localhost:13000',
   'gitea.token': '',
+  'docker.socketPath': '',
   'docker.workerImage': 'openclaw:local',
   'docker.maxWorkers': '10',
   'docker.network': 'openclaws-net',
   'openclaw.sourcePath': '',
-  'openclaw.defaultModel': 'sonnet',
+  'openclaw.workspaceBase': '',
   'openclaw.gatewayPortBase': '18800',
   'openclaw.gatewayToken': '',
 }
 
+const store = new JsonStore('settings.json')
+
 export const configStore = {
   get(key: string): string {
-    const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as
-      | { value: string }
-      | undefined
-    return row?.value ?? DEFAULTS[key] ?? ''
+    const val = store.get(key)
+    return val != null ? String(val) : DEFAULTS[key] ?? ''
   },
 
   getAll(): Record<string, string> {
-    const rows = getDb().prepare('SELECT key, value FROM settings').all() as {
-      key: string
-      value: string
-    }[]
+    const all = store.getAll() as Record<string, string>
     const result = { ...DEFAULTS }
-    for (const row of rows) {
-      result[row.key] = row.value
+    for (const [k, v] of Object.entries(all)) {
+      result[k] = String(v)
     }
     return result
   },
 
   set(key: string, value: string): void {
-    getDb()
-      .prepare(
-        `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-      )
-      .run(key, value)
+    store.set(key, value)
     log.info(`Config updated: ${key}`)
   },
 
   setBatch(entries: Record<string, string>): void {
-    const stmt = getDb().prepare(
-      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-    )
-    const tx = getDb().transaction(() => {
-      for (const [k, v] of Object.entries(entries)) {
-        stmt.run(k, v)
-      }
-    })
-    tx()
+    store.setAll(entries)
     log.info(`Config batch updated: ${Object.keys(entries).join(', ')}`)
   },
 
   delete(key: string): void {
-    getDb().prepare('DELETE FROM settings WHERE key = ?').run(key)
+    store.delete(key)
   },
 }

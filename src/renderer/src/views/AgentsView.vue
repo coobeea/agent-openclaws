@@ -20,7 +20,7 @@ interface Agent {
 const agents = ref<Agent[]>([])
 const loading = ref(false)
 const showCreate = ref(false)
-const createForm = ref({ name: '', role: 'worker', description: '', gitea_repo: '' })
+const createForm = ref({ name: '', role: 'worker', description: '', gitea_repo: '', model: 'sonnet' })
 
 const selectedAgent = ref<Agent | null>(null)
 const rightTab = ref<'files' | 'logs'>('files')
@@ -54,14 +54,19 @@ async function loadAgents() {
   finally { loading.value = false }
 }
 
+const errorMsg = ref('')
+
 async function createAgent() {
   if (!createForm.value.name) return
+  errorMsg.value = ''
   try {
     await agentsApi.create(createForm.value)
     showCreate.value = false
-    createForm.value = { name: '', role: 'worker', description: '', gitea_repo: '' }
+    createForm.value = { name: '', role: 'worker', description: '', gitea_repo: '', model: 'sonnet' }
     await loadAgents()
-  } catch { /* graceful */ }
+  } catch (e: any) {
+    errorMsg.value = e.message || '创建失败'
+  }
 }
 
 async function startAgent(agent: Agent) {
@@ -186,17 +191,22 @@ const statusMap: Record<string, { cls: string; label: string }> = {
               </div>
             </div>
             <div>
+              <label class="block text-sm font-medium mb-1">模型</label>
+              <input v-model="createForm.model" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="例: sonnet" />
+            </div>
+            <div>
               <label class="block text-sm font-medium mb-1">关联 Gitea 仓库</label>
-              <input v-model="createForm.gitea_repo" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="owner/repo (可选)" />
+              <input v-model="createForm.gitea_repo" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="owner/repo (必填)" />
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">描述</label>
               <textarea v-model="createForm.description" rows="2" class="w-full px-3 py-2 bg-input-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="可选" />
             </div>
           </div>
+          <p v-if="errorMsg" class="text-xs text-error mt-2">{{ errorMsg }}</p>
           <div class="flex justify-end gap-2 mt-6">
-            <button class="px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors" @click="showCreate = false">取消</button>
-            <button class="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50" :disabled="!createForm.name" @click="createAgent">创建</button>
+            <button class="px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors" @click="showCreate = false; errorMsg = ''">取消</button>
+            <button class="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50" :disabled="!createForm.name || !createForm.gitea_repo" @click="createAgent">创建</button>
           </div>
         </div>
       </div>

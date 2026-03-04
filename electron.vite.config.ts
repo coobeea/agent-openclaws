@@ -10,7 +10,7 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        external: ['better-sqlite3', 'dockerode', 'cpu-features', 'ssh2', 'ws', 'bufferutil', 'utf-8-validate']
+        external: ['dockerode', 'tar-fs', 'cpu-features', 'ssh2', 'ws', 'bufferutil', 'utf-8-validate']
       }
     },
     resolve: {

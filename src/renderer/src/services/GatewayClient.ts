@@ -7,10 +7,8 @@ export type EventListener = (payload: unknown) => void
 interface PendingRequest {
   resolve: (payload: unknown) => void
   reject: (error: Error) => void
-  timer: ReturnType<typeof setTimeout>
 }
 
-const REQUEST_TIMEOUT = 30_000
 const RECONNECT_BASE = 2000
 const RECONNECT_MAX = 30_000
 
@@ -58,12 +56,7 @@ export class GatewayClient {
     const req: GatewayRequest = { type: 'req', id, method, params }
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error(`Timeout: ${method}`))
-      }, REQUEST_TIMEOUT)
-
-      this.pending.set(id, { resolve, reject, timer })
+      this.pending.set(id, { resolve, reject })
       this.ws!.send(JSON.stringify(req))
     })
   }
@@ -78,7 +71,6 @@ export class GatewayClient {
     const pending = this.pending.get(msg.id)
     if (!pending) return
     this.pending.delete(msg.id)
-    clearTimeout(pending.timer)
     if (msg.ok) pending.resolve(msg.payload)
     else pending.reject(new Error(msg.error?.message || 'Unknown error'))
   }
@@ -89,7 +81,7 @@ export class GatewayClient {
   }
 
   private rejectAll(reason: string): void {
-    for (const [, p] of this.pending) { clearTimeout(p.timer); p.reject(new Error(reason)) }
+    for (const [, p] of this.pending) { p.reject(new Error(reason)) }
     this.pending.clear()
   }
 

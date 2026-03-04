@@ -3,16 +3,16 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { HttpServer } from '@main/server/httpServer'
 import { getGateway } from '@main/gateway/Gateway'
 import { createMainWindow, getMainWindow } from '@main/window'
-import { initDatabase } from '@main/services/database'
+import { initDataDir } from '@main/services/jsonl-store'
 import { log } from '@main/utils/logger'
 
-// Gateway method groups
 import { systemMethods } from '@main/gateway/methods/system'
 import { agentsMethods } from '@main/gateway/methods/agents'
 import { tasksMethods } from '@main/gateway/methods/tasks'
 import { giteaMethods } from '@main/gateway/methods/gitea'
 import { settingsMethods } from '@main/gateway/methods/settings'
 import { imageMethods } from '@main/gateway/methods/image'
+import { modelsMethods } from '@main/gateway/methods/models'
 import { startHealthMonitor } from '@main/services/health-monitor'
 
 export async function initApp(): Promise<void> {
@@ -25,9 +25,8 @@ export async function initApp(): Promise<void> {
   await app.whenReady()
   log.info('Electron ready')
 
-  // 1. Database
-  initDatabase()
-  log.info('Database initialized')
+  // 1. Data directory
+  initDataDir()
 
   // 2. HttpServer
   new HttpServer()
@@ -41,6 +40,7 @@ export async function initApp(): Promise<void> {
   gateway.registerMethodGroup(giteaMethods)
   gateway.registerMethodGroup(settingsMethods)
   gateway.registerMethodGroup(imageMethods)
+  gateway.registerMethodGroup(modelsMethods)
   gateway.start()
   log.info('Gateway started')
 

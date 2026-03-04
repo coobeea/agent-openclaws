@@ -1,19 +1,51 @@
 import Dockerode from 'dockerode'
+import { existsSync } from 'fs'
 import { configStore } from './config-store'
 import { log } from '@main/utils/logger'
 
-const docker = new Dockerode()
-
 const CONTAINER_LABEL = 'openclaws.managed'
 const INTERNAL_PORT = 18789
+
+const SOCKET_PATHS = [
+  process.env.DOCKER_HOST?.replace('unix://', ''),
+  '/var/run/docker.sock',
+  `${process.env.HOME}/.docker/run/docker.sock`,
+  `${process.env.HOME}/.colima/default/docker.sock`,
+  `${process.env.HOME}/.orbstack/run/docker.sock`,
+].filter(Boolean) as string[]
+
+let docker: Dockerode | null = null
+
+function getDocker(): Dockerode {
+  if (docker) return docker
+
+  const configured = configStore.get('docker.socketPath')
+  if (configured) {
+    docker = new Dockerode({ socketPath: configured })
+    log.info(`Docker: using configured socket ${configured}`)
+    return docker
+  }
+
+  for (const sp of SOCKET_PATHS) {
+    if (existsSync(sp)) {
+      docker = new Dockerode({ socketPath: sp })
+      log.info(`Docker: using socket ${sp}`)
+      return docker
+    }
+  }
+
+  docker = new Dockerode()
+  log.info('Docker: using default connection')
+  return docker
+}
 
 export const dockerManager = {
   async ensureNetwork(): Promise<void> {
     const networkName = configStore.get('docker.network') || 'openclaws-net'
     try {
-      const networks = await docker.listNetworks({ filters: { name: [networkName] } })
+      const networks = await getDocker().listNetworks({ filters: { name: [networkName] } })
       if (networks.length === 0) {
-        await docker.createNetwork({ Name: networkName, Driver: 'bridge' })
+        await getDocker().createNetwork({ Name: networkName, Driver: 'bridge' })
         log.info(`Docker network "${networkName}" created`)
       }
     } catch (err: any) {
@@ -23,7 +55,7 @@ export const dockerManager = {
 
   async listWorkerContainers(): Promise<any[]> {
     try {
-      const containers = await docker.listContainers({
+      const containers = await getDocker().listContainers({
         all: true,
         filters: { label: [`${CONTAINER_LABEL}=true`] },
       })
@@ -43,10 +75,6 @@ export const dockerManager = {
     }
   },
 
-  /**
-   * Create an OpenClaw gateway container with proper volume mounts,
-   * network, and environment variables matching the official docker-compose.yml.
-   */
   async createOpenClawContainer(
     name: string,
     hostPort: number,
@@ -60,14 +88,14 @@ export const dockerManager = {
     await this.ensureNetwork()
 
     try {
-      const existing = docker.getContainer(containerName)
+      const existing = getDocker().getContainer(containerName)
       const info = await existing.inspect()
       if (info) {
         log.info(`Removing existing container: ${containerName}`)
         await existing.remove({ force: true })
       }
     } catch {
-      // container doesn't exist, that's fine
+      // doesn't exist
     }
 
     const envList = [
@@ -79,7 +107,7 @@ export const dockerManager = {
     const configDir = `${workspacePath}/.openclaw`
     const wsDir = `${workspacePath}/workspace`
 
-    const container = await docker.createContainer({
+    const container = await getDocker().createContainer({
       Image: image,
       name: containerName,
       Labels: {
@@ -125,7 +153,7 @@ export const dockerManager = {
 
   async startContainer(id: string): Promise<boolean> {
     try {
-      await docker.getContainer(id).start()
+      await getDocker().getContainer(id).start()
       return true
     } catch (e: any) {
       log.error('Start failed:', e.message)
@@ -135,7 +163,7 @@ export const dockerManager = {
 
   async stopContainer(id: string): Promise<boolean> {
     try {
-      await docker.getContainer(id).stop()
+      await getDocker().getContainer(id).stop()
       return true
     } catch (e: any) {
       log.error('Stop failed:', e.message)
@@ -145,7 +173,7 @@ export const dockerManager = {
 
   async restartContainer(id: string): Promise<boolean> {
     try {
-      await docker.getContainer(id).restart()
+      await getDocker().getContainer(id).restart()
       return true
     } catch (e: any) {
       log.error('Restart failed:', e.message)
@@ -155,7 +183,7 @@ export const dockerManager = {
 
   async removeContainer(id: string, force = false): Promise<boolean> {
     try {
-      await docker.getContainer(id).remove({ force })
+      await getDocker().getContainer(id).remove({ force })
       return true
     } catch (e: any) {
       log.error('Remove failed:', e.message)
@@ -165,7 +193,7 @@ export const dockerManager = {
 
   async getContainerLogs(id: string, tail = 200): Promise<string> {
     try {
-      const c = docker.getContainer(id)
+      const c = getDocker().getContainer(id)
       const logs = await c.logs({ stdout: true, stderr: true, tail, timestamps: true })
       return typeof logs === 'string' ? logs : logs.toString('utf-8')
     } catch (e: any) {
@@ -176,7 +204,7 @@ export const dockerManager = {
 
   async getContainerState(id: string): Promise<{ running: boolean; health?: string } | null> {
     try {
-      const info = await docker.getContainer(id).inspect()
+      const info = await getDocker().getContainer(id).inspect()
       return {
         running: info.State.Running,
         health: info.State.Health?.Status,
@@ -186,21 +214,41 @@ export const dockerManager = {
     }
   },
 
-  async imageExists(tag: string): Promise<{ exists: boolean; id?: string; size?: string; created?: string }> {
+  async isDockerRunning(): Promise<boolean> {
     try {
-      const info = await docker.getImage(tag).inspect()
+      await getDocker().ping()
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  async imageExists(tag: string): Promise<{ exists: boolean; id?: string; size?: string; created?: string; dockerRunning?: boolean }> {
+    try {
+      await getDocker().ping()
+    } catch {
+      return { exists: false, dockerRunning: false }
+    }
+    try {
+      const info = await getDocker().getImage(tag).inspect()
       return {
         exists: true,
         id: info.Id,
         size: `${(info.Size / 1024 / 1024).toFixed(0)} MB`,
         created: info.Created,
+        dockerRunning: true,
       }
     } catch {
-      return { exists: false }
+      return { exists: false, dockerRunning: true }
     }
   },
 
+  /** Reset the cached docker client (e.g. after changing socket path in settings) */
+  resetClient(): void {
+    docker = null
+  },
+
   getDocker(): Dockerode {
-    return docker
+    return getDocker()
   },
 }

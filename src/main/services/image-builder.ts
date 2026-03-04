@@ -1,5 +1,6 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
+import * as tarFs from 'tar-fs'
 import { dockerManager } from './docker-manager'
 import { configStore } from './config-store'
 import { log } from '@main/utils/logger'
@@ -20,9 +21,18 @@ export const imageBuilder = {
       return { ok: false, message: '未配置 OpenClaw 源码路径（设置 → openclaw.sourcePath）' }
     }
 
+    if (!existsSync(sourcePath)) {
+      return { ok: false, message: `源码路径不存在: ${sourcePath}` }
+    }
+
     const dockerfile = join(sourcePath, 'Dockerfile')
     if (!existsSync(dockerfile)) {
       return { ok: false, message: `源码路径下未找到 Dockerfile: ${dockerfile}` }
+    }
+
+    const running = await dockerManager.isDockerRunning()
+    if (!running) {
+      return { ok: false, message: 'Docker 未运行，请先启动 Docker Desktop' }
     }
 
     const tag = configStore.get('docker.workerImage') || 'openclaw:local'
@@ -36,10 +46,19 @@ export const imageBuilder = {
       if (opts.installBrowser) buildArgs['OPENCLAW_INSTALL_BROWSER'] = '1'
       if (opts.installDockerCli) buildArgs['OPENCLAW_INSTALL_DOCKER_CLI'] = '1'
 
-      const stream = await docker.buildImage(
-        { context: sourcePath, src: ['.'] },
-        { t: tag, buildargs: buildArgs, dockerfile: 'Dockerfile' }
-      )
+      const tarStream = tarFs.pack(sourcePath, {
+        ignore: (name: string) => {
+          const rel = name.replace(sourcePath, '').replace(/^\//, '')
+          return rel.startsWith('node_modules/') || rel === 'node_modules' ||
+                 rel.startsWith('.git/') || rel === '.git'
+        },
+      })
+
+      const stream = await docker.buildImage(tarStream, {
+        t: tag,
+        buildargs: buildArgs,
+        dockerfile: 'Dockerfile',
+      })
 
       await new Promise<void>((resolve, reject) => {
         docker.modem.followProgress(
@@ -49,7 +68,7 @@ export const imageBuilder = {
               broadcastBuildLog(`\n构建失败: ${err.message}\n`)
               reject(err)
             } else {
-              broadcastBuildLog('\n构建完成！\n')
+              broadcastBuildLog('\n镜像构建完成！\n')
               resolve()
             }
           },

@@ -10,12 +10,11 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "postinstall": "electron-rebuild --only better-sqlite3,bufferutil,utf-8-validate"
+    "postinstall": "electron-rebuild --only bufferutil,utf-8-validate"
   },
   "dependencies": {
     "@koa/cors": "^5.0.0",
     "@koa/router": "^15.0.0",
-    "better-sqlite3": "^11.0.0",
     "dockerode": "^4.0.0",
     "koa": "^3.0.0",
     "koa-bodyparser": "^4.4.1",
@@ -31,7 +30,6 @@
     "@iconify-json/carbon": "^1.2.18",
     "@iconify-json/svg-spinners": "^1.2.4",
     "@tailwindcss/vite": "^4.1.0",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/dockerode": "^3.3.31",
     "@types/koa": "^2.15.0",
     "@types/koa__cors": "^5.0.0",

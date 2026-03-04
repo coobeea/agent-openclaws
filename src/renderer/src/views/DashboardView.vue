@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { agentsApi, tasksApi, systemApi, imageApi } from '@/api'
+import { getGatewayClient } from '@/services/GatewayClient'
 
 interface Agent { id: number; name: string; role: string; status: string; health_ok: number; gateway_port: number | null }
 
 const agents = ref<Agent[]>([])
 const tasks = ref<any[]>([])
-const backendOk = ref(false)
+const dockerRunning = ref(false)
 const imageReady = ref(false)
 const loading = ref(true)
+
+const gw = getGatewayClient()
+const backendOk = gw.connected
 
 const totalAgents = computed(() => agents.value.length)
 const runningAgents = computed(() => agents.value.filter(a => a.status === 'running').length)
@@ -20,19 +24,39 @@ const pendingTasks = computed(() => tasks.value.filter(t => t.status === 'pendin
 const inProgressTasks = computed(() => tasks.value.filter(t => t.status === 'in_progress').length)
 const completedTasks = computed(() => tasks.value.filter(t => t.status === 'completed').length)
 
-onMounted(async () => {
-  const [agentsRes, tasksRes, healthRes, imgRes] = await Promise.allSettled([
-    agentsApi.list(),
-    tasksApi.list(),
-    systemApi.health(),
-    imageApi.status(),
-  ])
+async function loadData() {
+  if (!backendOk.value) return
+  
+  try {
+    const [agentsRes, tasksRes, imgRes] = await Promise.allSettled([
+      agentsApi.list(),
+      tasksApi.list(),
+      imageApi.status(),
+    ])
 
-  if (agentsRes.status === 'fulfilled') agents.value = agentsRes.value as Agent[]
-  if (tasksRes.status === 'fulfilled') tasks.value = tasksRes.value as any[]
-  if (healthRes.status === 'fulfilled') backendOk.value = true
-  if (imgRes.status === 'fulfilled') imageReady.value = (imgRes.value as any)?.exists ?? false
+    if (agentsRes.status === 'fulfilled') agents.value = agentsRes.value as Agent[]
+    if (tasksRes.status === 'fulfilled') tasks.value = tasksRes.value as any[]
+    if (imgRes.status === 'fulfilled') {
+      const imgData = imgRes.value as any
+      dockerRunning.value = imgData?.dockerRunning !== false
+      imageReady.value = imgData?.exists ?? false
+    }
+  } catch { /* ignore */ }
   loading.value = false
+}
+
+onMounted(() => {
+  loadData()
+  gw.on('agents.updated', (data: any) => {
+    agents.value = data as Agent[]
+  })
+})
+
+watch(backendOk, (ok) => {
+  if (ok) {
+    loading.value = true
+    loadData()
+  }
 })
 </script>
 
@@ -46,10 +70,10 @@ onMounted(async () => {
       <div class="flex items-center gap-3">
         <span
           class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-          :class="imageReady ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
+          :class="!dockerRunning ? 'bg-error/10 text-error' : imageReady ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
         >
           <span class="i-carbon-cube" />
-          {{ imageReady ? '镜像就绪' : '镜像未构建' }}
+          {{ !dockerRunning ? 'Docker 未运行' : imageReady ? '镜像就绪' : '镜像未构建' }}
         </span>
         <span
           class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
