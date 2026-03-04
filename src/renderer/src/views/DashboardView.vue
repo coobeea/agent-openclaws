@@ -1,52 +1,39 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { agentsApi, tasksApi, systemApi } from '@/api'
+import { ref, computed, onMounted } from 'vue'
+import { agentsApi, tasksApi, systemApi, imageApi } from '@/api'
 
-const stats = ref({
-  totalAgents: 0,
-  runningAgents: 0,
-  totalTasks: 0,
-  pendingTasks: 0,
-  inProgressTasks: 0,
-  completedTasks: 0,
-  backendOk: false,
-})
+interface Agent { id: number; name: string; role: string; status: string; health_ok: number; gateway_port: number | null }
 
+const agents = ref<Agent[]>([])
+const tasks = ref<any[]>([])
+const backendOk = ref(false)
+const imageReady = ref(false)
 const loading = ref(true)
 
+const totalAgents = computed(() => agents.value.length)
+const runningAgents = computed(() => agents.value.filter(a => a.status === 'running').length)
+const healthyAgents = computed(() => agents.value.filter(a => a.health_ok).length)
+const masterAgent = computed(() => agents.value.find(a => a.role === 'master'))
+
+const totalTasks = computed(() => tasks.value.length)
+const pendingTasks = computed(() => tasks.value.filter(t => t.status === 'pending').length)
+const inProgressTasks = computed(() => tasks.value.filter(t => t.status === 'in_progress').length)
+const completedTasks = computed(() => tasks.value.filter(t => t.status === 'completed').length)
+
 onMounted(async () => {
-  const [agentsRes, tasksRes, healthRes] = await Promise.allSettled([
+  const [agentsRes, tasksRes, healthRes, imgRes] = await Promise.allSettled([
     agentsApi.list(),
     tasksApi.list(),
     systemApi.health(),
+    imageApi.status(),
   ])
 
-  if (agentsRes.status === 'fulfilled') {
-    const agents = agentsRes.value as any[]
-    stats.value.totalAgents = agents.length
-    stats.value.runningAgents = agents.filter((a) => a.status === 'running').length
-  }
-  if (tasksRes.status === 'fulfilled') {
-    const tasks = tasksRes.value as any[]
-    stats.value.totalTasks = tasks.length
-    stats.value.pendingTasks = tasks.filter((t) => t.status === 'pending').length
-    stats.value.inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length
-    stats.value.completedTasks = tasks.filter((t) => t.status === 'completed').length
-  }
-  if (healthRes.status === 'fulfilled') {
-    stats.value.backendOk = true
-  }
+  if (agentsRes.status === 'fulfilled') agents.value = agentsRes.value as Agent[]
+  if (tasksRes.status === 'fulfilled') tasks.value = tasksRes.value as any[]
+  if (healthRes.status === 'fulfilled') backendOk.value = true
+  if (imgRes.status === 'fulfilled') imageReady.value = (imgRes.value as any)?.exists ?? false
   loading.value = false
 })
-
-const cards = [
-  { key: 'totalAgents', label: '智能体总数', icon: 'i-carbon-bot', color: 'text-primary' },
-  { key: 'runningAgents', label: '运行中', icon: 'i-carbon-play-filled-alt', color: 'text-success' },
-  { key: 'totalTasks', label: '任务总数', icon: 'i-carbon-task', color: 'text-info' },
-  { key: 'pendingTasks', label: '待处理', icon: 'i-carbon-pending', color: 'text-warning' },
-  { key: 'inProgressTasks', label: '进行中', icon: 'i-carbon-in-progress', color: 'text-primary' },
-  { key: 'completedTasks', label: '已完成', icon: 'i-carbon-checkmark-filled', color: 'text-success' },
-]
 </script>
 
 <template>
@@ -56,13 +43,22 @@ const cards = [
         <h1 class="text-2xl font-bold">仪表盘</h1>
         <p class="text-sm text-muted-foreground mt-1">龙虾军团运行总览</p>
       </div>
-      <span
-        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-        :class="stats.backendOk ? 'bg-success/10 text-success' : 'bg-error/10 text-error'"
-      >
-        <span class="w-2 h-2 rounded-full" :class="stats.backendOk ? 'bg-success' : 'bg-error'" />
-        {{ stats.backendOk ? 'Gateway 在线' : 'Gateway 离线' }}
-      </span>
+      <div class="flex items-center gap-3">
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+          :class="imageReady ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
+        >
+          <span class="i-carbon-cube" />
+          {{ imageReady ? '镜像就绪' : '镜像未构建' }}
+        </span>
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+          :class="backendOk ? 'bg-success/10 text-success' : 'bg-error/10 text-error'"
+        >
+          <span class="w-2 h-2 rounded-full" :class="backendOk ? 'bg-success' : 'bg-error'" />
+          {{ backendOk ? 'Gateway 在线' : 'Gateway 离线' }}
+        </span>
+      </div>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center py-20 text-muted-foreground">
@@ -70,41 +66,74 @@ const cards = [
     </div>
 
     <template v-else>
-      <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
-          v-for="card in cards"
-          :key="card.key"
-          class="bg-card border border-border rounded-xl p-5 hover:shadow-md transition-shadow"
-        >
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-sm text-muted-foreground">{{ card.label }}</p>
-              <p class="text-3xl font-bold mt-1" :class="card.color">
-                {{ stats[card.key as keyof typeof stats] }}
-              </p>
-            </div>
-            <span class="text-3xl opacity-20" :class="card.icon" />
-          </div>
+      <!-- Agent stats -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-card border border-border rounded-xl p-5">
+          <p class="text-sm text-muted-foreground">龙虾总数</p>
+          <p class="text-3xl font-bold mt-1 text-primary">{{ totalAgents }}</p>
+        </div>
+        <div class="bg-card border border-border rounded-xl p-5">
+          <p class="text-sm text-muted-foreground">运行中</p>
+          <p class="text-3xl font-bold mt-1 text-success">{{ runningAgents }}</p>
+        </div>
+        <div class="bg-card border border-border rounded-xl p-5">
+          <p class="text-sm text-muted-foreground">健康</p>
+          <p class="text-3xl font-bold mt-1" :class="healthyAgents === runningAgents && runningAgents > 0 ? 'text-success' : 'text-warning'">{{ healthyAgents }}</p>
+        </div>
+        <div class="bg-card border border-border rounded-xl p-5">
+          <p class="text-sm text-muted-foreground">任务总数</p>
+          <p class="text-3xl font-bold mt-1 text-info">{{ totalTasks }}</p>
         </div>
       </div>
 
-      <div class="mt-8 bg-card border border-border rounded-xl p-6">
-        <h2 class="text-lg font-semibold mb-4">系统架构</h2>
-        <div class="grid grid-cols-3 gap-4 text-center text-sm">
-          <div class="bg-surface-variant rounded-lg p-4">
-            <span class="i-carbon-bot text-2xl text-primary block mx-auto mb-2" />
-            <p class="font-medium">主智能体</p>
-            <p class="text-muted-foreground text-xs mt-1">需求分析与任务拆解</p>
-          </div>
-          <div class="bg-surface-variant rounded-lg p-4">
-            <span class="i-carbon-logo-github text-2xl text-primary block mx-auto mb-2" />
-            <p class="font-medium">Gitea :13000</p>
-            <p class="text-muted-foreground text-xs mt-1">代码仓库与 Issue 管理</p>
-          </div>
-          <div class="bg-surface-variant rounded-lg p-4">
-            <span class="i-carbon-container-software text-2xl text-primary block mx-auto mb-2" />
-            <p class="font-medium">Worker 容器</p>
-            <p class="text-muted-foreground text-xs mt-1">Docker 隔离执行</p>
+      <!-- Task stats -->
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-card border border-border rounded-xl p-4 text-center">
+          <span class="i-carbon-pending text-2xl text-warning opacity-40 block mx-auto mb-1" />
+          <p class="text-2xl font-bold text-warning">{{ pendingTasks }}</p>
+          <p class="text-xs text-muted-foreground">待处理</p>
+        </div>
+        <div class="bg-card border border-border rounded-xl p-4 text-center">
+          <span class="i-carbon-in-progress text-2xl text-info opacity-40 block mx-auto mb-1" />
+          <p class="text-2xl font-bold text-info">{{ inProgressTasks }}</p>
+          <p class="text-xs text-muted-foreground">进行中</p>
+        </div>
+        <div class="bg-card border border-border rounded-xl p-4 text-center">
+          <span class="i-carbon-checkmark-filled text-2xl text-success opacity-40 block mx-auto mb-1" />
+          <p class="text-2xl font-bold text-success">{{ completedTasks }}</p>
+          <p class="text-xs text-muted-foreground">已完成</p>
+        </div>
+      </div>
+
+      <!-- Agent fleet -->
+      <div class="bg-card border border-border rounded-xl p-6">
+        <h2 class="text-lg font-semibold mb-4">军团阵容</h2>
+        <div v-if="agents.length === 0" class="text-center py-8 text-muted-foreground">
+          <p>暂无龙虾，前往智能体管理创建</p>
+        </div>
+        <div v-else class="space-y-2">
+          <div v-for="agent in agents" :key="agent.id" class="flex items-center justify-between px-4 py-3 bg-surface-variant rounded-lg">
+            <div class="flex items-center gap-3">
+              <span :class="agent.role === 'master' ? 'i-carbon-crown text-warning' : 'i-carbon-bot text-primary'" class="text-lg" />
+              <div>
+                <span class="font-medium text-sm">{{ agent.name }}</span>
+                <span class="text-xs text-muted-foreground ml-2">:{{ agent.gateway_port || '-' }}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span v-if="agent.health_ok" class="w-2 h-2 rounded-full bg-success" title="健康" />
+              <span v-else-if="agent.status === 'running'" class="w-2 h-2 rounded-full bg-warning animate-pulse" title="等待健康检查" />
+              <span
+                class="px-2 py-0.5 rounded-full text-xs font-medium"
+                :class="{
+                  'bg-success/10 text-success': agent.status === 'running',
+                  'bg-muted text-muted-foreground': agent.status === 'stopped',
+                  'bg-error/10 text-error': agent.status === 'error',
+                }"
+              >
+                {{ agent.status === 'running' ? '运行中' : agent.status === 'error' ? '异常' : '已停止' }}
+              </span>
+            </div>
           </div>
         </div>
       </div>

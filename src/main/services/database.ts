@@ -19,8 +19,11 @@ export function initDatabase(): void {
       status TEXT NOT NULL DEFAULT 'stopped',
       container_id TEXT,
       gateway_port INTEGER,
+      gateway_token TEXT,
       workspace_path TEXT,
       description TEXT,
+      gitea_repo TEXT,
+      health_ok INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -37,6 +40,12 @@ export function initDatabase(): void {
       gitea_issue_number INTEGER,
       gitea_pr_number INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
       updated_at TEXT DEFAULT (datetime('now'))
     );
   `)

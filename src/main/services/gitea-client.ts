@@ -1,17 +1,24 @@
+import { configStore } from './config-store'
 import { log } from '@main/utils/logger'
 
-const GITEA_URL = process.env.OPENCLAWS_GITEA_URL || 'http://localhost:13000'
-const GITEA_API = `${GITEA_URL}/api/v1`
-const GITEA_TOKEN = process.env.OPENCLAWS_GITEA_TOKEN || ''
+function getBaseUrl(): string {
+  const url = configStore.get('gitea.url') || 'http://localhost:13000'
+  return `${url}/api/v1`
+}
+
+function getToken(): string {
+  return configStore.get('gitea.token') || ''
+}
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
-  if (GITEA_TOKEN) h['Authorization'] = `token ${GITEA_TOKEN}`
+  const token = getToken()
+  if (token) h['Authorization'] = `token ${token}`
   return h
 }
 
 async function request(path: string, opts?: RequestInit): Promise<any> {
-  const url = `${GITEA_API}${path}`
+  const url = `${getBaseUrl()}${path}`
   const res = await fetch(url, { ...opts, headers: { ...headers(), ...opts?.headers } })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -22,7 +29,6 @@ async function request(path: string, opts?: RequestInit): Promise<any> {
 }
 
 export const giteaClient = {
-  // Repos
   async listRepos(page = 1, limit = 50): Promise<any[]> {
     const data = await request(`/repos/search?limit=${limit}&page=${page}`)
     return data?.data || []
@@ -32,7 +38,6 @@ export const giteaClient = {
     return request(`/repos/${owner}/${repo}`)
   },
 
-  // Issues
   async listIssues(owner: string, repo: string, state = 'open', page = 1, limit = 50): Promise<any[]> {
     return request(`/repos/${owner}/${repo}/issues?state=${state}&page=${page}&limit=${limit}&type=issues`)
   },
@@ -49,7 +54,6 @@ export const giteaClient = {
     return request(`/repos/${owner}/${repo}/issues/${index}`, { method: 'PATCH', body: JSON.stringify(data) })
   },
 
-  // Pull Requests
   async listPulls(owner: string, repo: string, state = 'open', page = 1, limit = 50): Promise<any[]> {
     return request(`/repos/${owner}/${repo}/pulls?state=${state}&page=${page}&limit=${limit}`)
   },

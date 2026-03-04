@@ -1,5 +1,6 @@
 import type { MethodGroup } from '@shared/gateway-protocol'
 import { agentManager } from '@main/services/agent-manager'
+import { dockerManager } from '@main/services/docker-manager'
 
 export const agentsMethods: MethodGroup = {
   namespace: 'agents',
@@ -14,8 +15,9 @@ export const agentsMethods: MethodGroup = {
 
     create: async (p) => agentManager.create(
       String(p.name),
-      String(p.role || 'worker'),
-      String(p.description || '')
+      (p.role as 'master' | 'worker') || 'worker',
+      String(p.description || ''),
+      String(p.gitea_repo || '')
     ),
 
     delete: async (p) => {
@@ -30,7 +32,7 @@ export const agentsMethods: MethodGroup = {
     },
 
     start: async (p) => {
-      const agent = await agentManager.startWorker(Number(p.id), Number(p.port || 7861))
+      const agent = await agentManager.startWorker(Number(p.id))
       if (!agent) throw new Error('Cannot start agent')
       return agent
     },
@@ -42,15 +44,27 @@ export const agentsMethods: MethodGroup = {
     },
 
     restart: async (p) => {
-      await agentManager.stopWorker(Number(p.id))
-      const port = Number(p.port || 7861)
-      return agentManager.startWorker(Number(p.id), port)
+      const id = Number(p.id)
+      const agent = agentManager.get(id)
+      if (agent?.container_id) {
+        await dockerManager.restartContainer(agent.container_id)
+        return agentManager.update(id, { status: 'running' })
+      }
+      await agentManager.stopWorker(id)
+      return agentManager.startWorker(id)
+    },
+
+    logs: async (p) => {
+      const agent = agentManager.get(Number(p.id))
+      if (!agent?.container_id) throw new Error('Agent has no container')
+      const logs = await dockerManager.getContainerLogs(agent.container_id, Number(p.tail || 200))
+      return { logs }
     },
 
     files: async (p) => {
       const agent = agentManager.get(Number(p.id))
       if (!agent) throw new Error('Agent not found')
-      return { files: agentManager.listFiles(agent.name) }
+      return agentManager.listFiles(agent.name)
     },
 
     readFile: async (p) => {
@@ -66,6 +80,19 @@ export const agentsMethods: MethodGroup = {
       if (!agent) throw new Error('Agent not found')
       agentManager.writeFile(agent.name, String(p.filename), String(p.content))
       return { ok: true }
-    }
-  }
+    },
+
+    openclawConfig: async (p) => {
+      const agent = agentManager.get(Number(p.id))
+      if (!agent) throw new Error('Agent not found')
+      return agentManager.readOpenClawConfig(agent.name)
+    },
+
+    saveOpenclawConfig: async (p) => {
+      const agent = agentManager.get(Number(p.id))
+      if (!agent) throw new Error('Agent not found')
+      agentManager.writeOpenClawConfig(agent.name, p.config as Record<string, unknown>)
+      return { ok: true }
+    },
+  },
 }

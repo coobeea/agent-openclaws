@@ -5,15 +5,18 @@ function gw() { return getGatewayClient() }
 export const agentsApi = {
   list: () => gw().request('agents.list'),
   get: (id: number) => gw().request('agents.get', { id }),
-  create: (data: { name: string; role?: string; description?: string }) => gw().request('agents.create', data),
+  create: (data: { name: string; role?: string; description?: string; gitea_repo?: string }) => gw().request('agents.create', data),
   update: (id: number, data: Record<string, unknown>) => gw().request('agents.update', { id, ...data }),
   delete: (id: number) => gw().request('agents.delete', { id }),
-  start: (id: number, port?: number) => gw().request('agents.start', { id, port }),
+  start: (id: number) => gw().request('agents.start', { id }),
   stop: (id: number) => gw().request('agents.stop', { id }),
   restart: (id: number) => gw().request('agents.restart', { id }),
+  logs: (id: number, tail?: number) => gw().request('agents.logs', { id, tail }),
   files: (id: number) => gw().request('agents.files', { id }),
   readFile: (id: number, filename: string) => gw().request('agents.readFile', { id, filename }),
   writeFile: (id: number, filename: string, content: string) => gw().request('agents.writeFile', { id, filename, content }),
+  openclawConfig: (id: number) => gw().request('agents.openclawConfig', { id }),
+  saveOpenclawConfig: (id: number, config: Record<string, unknown>) => gw().request('agents.saveOpenclawConfig', { id, config }),
 }
 
 export const tasksApi = {
@@ -35,6 +38,18 @@ export const giteaApi = {
   pullDetail: (owner: string, repo: string, index: number) => gw().request('gitea.pullDetail', { owner, repo, index }),
   pullFiles: (owner: string, repo: string, index: number) => gw().request('gitea.pullFiles', { owner, repo, index }),
   mergePull: (owner: string, repo: string, index: number) => gw().request('gitea.mergePull', { owner, repo, index }),
+}
+
+export const settingsApi = {
+  getAll: () => gw().request('settings.getAll'),
+  get: (key: string) => gw().request('settings.get', { key }),
+  set: (key: string, value: string) => gw().request('settings.set', { key, value }),
+  setBatch: (entries: Record<string, string>) => gw().request('settings.setBatch', { entries }),
+}
+
+export const imageApi = {
+  status: () => gw().request('image.status'),
+  build: (opts?: Record<string, unknown>) => gw().request('image.build', opts || {}),
 }
 
 export const systemApi = {

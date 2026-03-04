@@ -11,6 +11,9 @@ import { systemMethods } from '@main/gateway/methods/system'
 import { agentsMethods } from '@main/gateway/methods/agents'
 import { tasksMethods } from '@main/gateway/methods/tasks'
 import { giteaMethods } from '@main/gateway/methods/gitea'
+import { settingsMethods } from '@main/gateway/methods/settings'
+import { imageMethods } from '@main/gateway/methods/image'
+import { startHealthMonitor } from '@main/services/health-monitor'
 
 export async function initApp(): Promise<void> {
   electronApp.setAppUserModelId('com.openclaws')
@@ -36,10 +39,15 @@ export async function initApp(): Promise<void> {
   gateway.registerMethodGroup(agentsMethods)
   gateway.registerMethodGroup(tasksMethods)
   gateway.registerMethodGroup(giteaMethods)
+  gateway.registerMethodGroup(settingsMethods)
+  gateway.registerMethodGroup(imageMethods)
   gateway.start()
   log.info('Gateway started')
 
-  // 4. Window
+  // 4. Health monitor
+  startHealthMonitor()
+
+  // 5. Window
   createMainWindow()
 
   app.on('activate', () => {
