@@ -281,6 +281,8 @@ export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, 
       appId: feishuAppId,
       appSecret: feishuAppSecret,
       domain: 'feishu', // 默认中国版
+      dmPolicy: 'open',
+      groupPolicy: 'open'
     }
   }
 
