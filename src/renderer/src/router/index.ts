@@ -14,6 +14,7 @@ const router = createRouter({
         { path: 'tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
         { path: 'gitea', name: 'gitea', component: () => import('@/views/GiteaView.vue') },
         { path: 'models', name: 'models', component: () => import('@/views/ModelsView.vue') },
+        { path: 'channels', name: 'channels', component: () => import('@/views/ChannelsView.vue') },
         { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
       ]
     }

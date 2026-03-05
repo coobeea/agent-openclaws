@@ -17,6 +17,7 @@ const navItems = [
   { path: '/tasks', label: '任务', icon: 'i-carbon-task' },
   { path: '/gitea', label: 'Gitea', icon: 'i-carbon-logo-github' },
   { path: '/models', label: '模型配置', icon: 'i-carbon-machine-learning-model' },
+  { path: '/channels', label: '渠道配置', icon: 'i-carbon-connection-signal' },
   { path: '/settings', label: '设置', icon: 'i-carbon-settings' },
 ]
 

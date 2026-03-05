@@ -57,6 +57,13 @@ export const modelsApi = {
   saveProviders: (providers: any[]) => gw().request('models.saveProviders', { providers }),
 }
 
+export const channelsApi = {
+  list: () => gw().request('channels.list'),
+  create: (data: { name: string; type: string; config: Record<string, any> }) => gw().request('channels.create', data),
+  update: (id: number, data: { name: string; type: string; config: Record<string, any> }) => gw().request('channels.update', { id, ...data }),
+  delete: (id: number) => gw().request('channels.delete', { id }),
+}
+
 export const systemApi = {
   health: () => gw().request('system.health'),
   methods: () => gw().request('system.methods'),

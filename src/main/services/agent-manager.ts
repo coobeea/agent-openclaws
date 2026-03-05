@@ -42,7 +42,8 @@ function ensureWorkspace(
   role: 'master' | 'worker' | 'qa', 
   model?: string, 
   token?: string, 
-  lobbies?: string[]
+  lobbies?: string[],
+  feishuConfig?: any
 ): string {
   const root = join(WORKSPACES_ROOT(), name)
   const configDir = join(root, '.openclaw')
@@ -70,7 +71,8 @@ function ensureWorkspace(
     role, 
     gatewayToken: resolvedToken, 
     model,
-    lobbies 
+    lobbies,
+    feishuConfig
   })
   writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8')
 

@@ -1,8 +1,8 @@
-import { MethodGroup } from '../Gateway'
+import type { MethodGroup } from '@shared/gateway-protocol'
 import { channelManager } from '../../services/channel-manager'
 
 export const channelsMethods: MethodGroup = {
-  prefix: 'channels',
+  namespace: 'channels',
   methods: {
     list: async () => {
       return channelManager.list()

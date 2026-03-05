@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import { agentsApi, modelsApi, giteaApi } from '@/api'
+import { agentsApi, modelsApi, giteaApi, channelsApi } from '@/api'
 import { getGatewayClient } from '@/services/GatewayClient'
 
 interface Agent {
@@ -26,6 +26,7 @@ interface ModelProvider {
 const agents = ref<Agent[]>([])
 const providers = ref<ModelProvider[]>([])
 const giteaRepos = ref<string[]>([])
+const channels = ref<any[]>([])
 const loading = ref(false)
 const showCreate = ref(false)
 const createForm = ref({ 
@@ -35,6 +36,7 @@ const createForm = ref({
   gitea_repo: '', 
   model: '',
   feishu_enabled: false,
+  feishu_channel_id: null as number | null,
   feishu_app_id: '',
   feishu_app_secret: ''
 })
@@ -56,6 +58,7 @@ onMounted(() => {
   loadAgents()
   loadProviders()
   loadGiteaRepos()
+  loadChannels()
   const gw = getGatewayClient()
   unsubAgentsUpdated = gw.on('agents.updated', (data: any) => {
     agents.value = data as Agent[]
@@ -94,13 +97,31 @@ async function loadGiteaRepos() {
   }
 }
 
+async function loadChannels() {
+  try {
+    const res = await channelsApi.list()
+    channels.value = Array.isArray(res) ? res : []
+  } catch (err) {
+    console.warn('Failed to load channels', err)
+  }
+}
+
 const errorMsg = ref('')
 
 async function createAgent() {
   if (!createForm.value.name) return
   errorMsg.value = ''
   try {
-    await agentsApi.create(createForm.value)
+    const payload = { ...createForm.value }
+    if (payload.feishu_enabled && payload.feishu_channel_id) {
+      const channel = channels.value.find(c => c.id === payload.feishu_channel_id)
+      if (channel && channel.type === 'feishu') {
+        payload.feishu_app_id = channel.config.app_id
+        payload.feishu_app_secret = channel.config.app_secret
+      }
+    }
+
+    await agentsApi.create(payload)
     showCreate.value = false
     const currentModel = createForm.value.model
     createForm.value = { 
@@ -110,6 +131,7 @@ async function createAgent() {
       gitea_repo: giteaRepos.value[0] || '', 
       model: currentModel,
       feishu_enabled: false,
+      feishu_channel_id: null,
       feishu_app_id: '',
       feishu_app_secret: ''
     }
@@ -335,22 +357,21 @@ const statusMap: Record<string, { cls: string; label: string }> = {
                 </button>
               </div>
               <div v-if="createForm.feishu_enabled" class="space-y-3 pt-2">
-                <div>
-                  <label class="block text-xs text-muted-foreground mb-1.5">飞书 App ID <span class="text-error">*</span></label>
-                  <input 
-                    v-model="createForm.feishu_app_id" 
-                    class="w-full px-3 py-2 bg-input-background border border-input/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info/50 transition-all" 
-                    placeholder="cli_xxxxxxxxxx" 
-                  />
+                <div v-if="channels.filter(c => c.type === 'feishu').length === 0" class="text-sm text-warning/80 bg-warning/10 p-3 rounded-lg flex items-center gap-2">
+                  <span class="i-carbon-warning-alt"></span>
+                  请先到「渠道配置」页面添加飞书渠道
                 </div>
-                <div>
-                  <label class="block text-xs text-muted-foreground mb-1.5">飞书 App Secret <span class="text-error">*</span></label>
-                  <input 
-                    v-model="createForm.feishu_app_secret"
-                    type="password"
-                    class="w-full px-3 py-2 bg-input-background border border-input/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info/50 transition-all" 
-                    placeholder="请输入 App Secret" 
-                  />
+                <div v-else>
+                  <label class="block text-xs text-muted-foreground mb-1.5">选择飞书渠道 <span class="text-error">*</span></label>
+                  <select 
+                    v-model="createForm.feishu_channel_id" 
+                    class="w-full px-3 py-2 bg-input-background border border-input/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info/50 transition-all appearance-none"
+                  >
+                    <option :value="null" disabled>请选择...</option>
+                    <option v-for="c in channels.filter(ch => ch.type === 'feishu')" :key="c.id" :value="c.id">
+                      {{ c.name }}
+                    </option>
+                  </select>
                 </div>
                 <p class="text-xs text-muted-foreground flex items-start gap-1.5 pt-1">
                   <span class="i-carbon-information text-info mt-0.5" />

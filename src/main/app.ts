@@ -14,6 +14,7 @@ import { giteaMethods } from '@main/gateway/methods/gitea'
 import { settingsMethods } from '@main/gateway/methods/settings'
 import { imageMethods } from '@main/gateway/methods/image'
 import { modelsMethods } from '@main/gateway/methods/models'
+import { channelsMethods } from '@main/gateway/methods/channels'
 import { startHealthMonitor } from '@main/services/health-monitor'
 
 export async function initApp(): Promise<void> {
@@ -49,6 +50,7 @@ export async function initApp(): Promise<void> {
   gateway.registerMethodGroup(settingsMethods)
   gateway.registerMethodGroup(imageMethods)
   gateway.registerMethodGroup(modelsMethods)
+  gateway.registerMethodGroup(channelsMethods)
   gateway.start()
   log.info('Gateway started')
 

@@ -10,14 +10,10 @@ export interface ChannelConfig {
 }
 
 class ChannelManager {
-  private store!: JsonlCollection<ChannelConfig>
-
-  init() {
-    this.store = new JsonlCollection<ChannelConfig>('channels.jsonl')
-  }
+  private store: JsonlCollection<ChannelConfig> = new JsonlCollection<ChannelConfig>('channels.jsonl')
 
   list(): ChannelConfig[] {
-    return this.store.find()
+    return this.store.all()
   }
 
   get(id: number): ChannelConfig | null {
@@ -28,16 +24,21 @@ class ChannelManager {
     return this.store.insert({
       name,
       type,
-      config
-    } as Omit<ChannelConfig, 'id'>)
+      config,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as any)
   }
 
   update(id: number, updates: Partial<Omit<ChannelConfig, 'id' | 'created_at' | 'updated_at'>>): ChannelConfig {
-    return this.store.update(id, updates)
+    return this.store.update(id, {
+      ...updates,
+      updated_at: new Date().toISOString()
+    } as any) as ChannelConfig
   }
 
   delete(id: number): void {
-    this.store.remove(id)
+    this.store.delete(id)
   }
 }
 
