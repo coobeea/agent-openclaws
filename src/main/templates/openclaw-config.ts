@@ -139,6 +139,12 @@ export interface OpenClawJsonOptions {
   role: 'master' | 'worker' | 'qa'
   gatewayToken?: string
   model?: string
+  lobbies?: string[]
+  feishuConfig?: {
+    feishu_enabled?: boolean
+    feishu_app_id?: string
+    feishu_app_secret?: string
+  }
 }
 
 export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, unknown> {
@@ -150,12 +156,41 @@ export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, 
 
   const gatewayToken = opts.gatewayToken || configStore.get('openclaw.gatewayToken') || ''
 
+  const lobbiesConfig = (opts.lobbies || []).reduce((acc, id) => {
+    acc[id] = { enabled: true }
+    return acc
+  }, {} as Record<string, { enabled: boolean }>)
+
+  // 使用龙虾独立的飞书配置
+  const feishuEnabled = opts.feishuConfig?.feishu_enabled === true
+  const feishuAppId = opts.feishuConfig?.feishu_app_id
+  const feishuAppSecret = opts.feishuConfig?.feishu_app_secret
+
+  const pluginEntries: Record<string, { enabled: boolean }> = {
+    lobster: {
+      enabled: true
+    },
+    'lobster-hub': {
+      enabled: true
+    }
+  }
+
+  // 如果启用了飞书，也要在 plugins 中启用
+  if (feishuEnabled && feishuAppId && feishuAppSecret) {
+    pluginEntries.feishu = {
+      enabled: true
+    }
+  }
+
   const config: Record<string, unknown> = {
     plugins: {
-      entries: {
-        lobster: {
-          enabled: true
-        }
+      entries: pluginEntries
+    },
+    channels: {
+      'lobster-hub': {
+        enabled: true,
+        hubUrl: 'ws://host.docker.internal:8765/api/hub/ws',
+        lobbies: lobbiesConfig,
       }
     },
     agents: {
@@ -236,6 +271,16 @@ export function generateOpenClawJson(opts: OpenClawJsonOptions): Record<string, 
         dangerouslyDisableDeviceAuth: true,
         allowInsecureAuth: true
       }
+    }
+  }
+
+  // 添加飞书配置（如果该龙虾启用了飞书）
+  if (feishuEnabled && feishuAppId && feishuAppSecret) {
+    ;(config as any).channels.feishu = {
+      enabled: true,
+      appId: feishuAppId,
+      appSecret: feishuAppSecret,
+      domain: 'feishu', // 默认中国版
     }
   }
 

@@ -4,6 +4,9 @@ import { EventEmitter } from 'events'
 import { agentManager } from '../services/agent-manager'
 import { JsonlCollection } from '../services/jsonl-store'
 import WebSocket from 'ws'
+import { WebSocketServer } from 'ws'
+import type { IncomingMessage } from 'http'
+import type http from 'http'
 
 export interface HubMessage {
   id: number
@@ -27,6 +30,8 @@ export interface Lobby {
 class LobsterHub extends EventEmitter {
   private messagesStore = new JsonlCollection<HubMessage>('chat_history.jsonl')
   private lobbiesStore = new JsonlCollection<Lobby>('lobbies.jsonl')
+  private wss: WebSocketServer | null = null
+  private connectedAgents = new Map<string, { ws: WebSocket; agentId: string; agentName: string; lobbies: string[] }>()
   
   // Keep an in-memory cache for fast polling/getting
   private get messages(): HubMessage[] {
@@ -50,23 +55,26 @@ class LobsterHub extends EventEmitter {
     return this.lobbiesStore.all()
   }
 
-  getLobby(id: string): Lobby | undefined {
-    return this.lobbiesStore.all().find(l => l.id.toString() === id)
+  getLobby(id: string | number): Lobby | undefined {
+    const idStr = id.toString()
+    return this.lobbiesStore.all().find(l => l.id.toString() === idStr)
   }
 
-  updateLobby(id: string, changes: Partial<Lobby>): Lobby | undefined {
-    const lobby = this.lobbiesStore.all().find(l => l.id.toString() === id)
+  updateLobby(id: string | number, changes: Partial<Lobby>): Lobby | undefined {
+    const idStr = id.toString()
+    const lobby = this.lobbiesStore.all().find(l => l.id.toString() === idStr)
     if (!lobby) return undefined
     return this.lobbiesStore.update(lobby.id as any, { ...changes, updated_at: new Date().toISOString() })
   }
 
-  deleteLobby(id: string): boolean {
-    const lobby = this.lobbiesStore.all().find(l => l.id.toString() === id)
+  deleteLobby(id: string | number): boolean {
+    const idStr = id.toString()
+    const lobby = this.lobbiesStore.all().find(l => l.id.toString() === idStr)
     if (!lobby) return false
     return this.lobbiesStore.delete(lobby.id as any)
   }
 
-  addMember(lobbyId: string, agentId: string): boolean {
+  addMember(lobbyId: string | number, agentId: string): boolean {
     const lobby = this.getLobby(lobbyId)
     if (!lobby) return false
     if (lobby.members.includes(agentId)) return true
@@ -75,7 +83,7 @@ class LobsterHub extends EventEmitter {
     return true
   }
 
-  removeMember(lobbyId: string, agentId: string): boolean {
+  removeMember(lobbyId: string | number, agentId: string): boolean {
     const lobby = this.getLobby(lobbyId)
     if (!lobby) return false
     lobby.members = lobby.members.filter(m => m !== agentId)
@@ -96,62 +104,87 @@ class LobsterHub extends EventEmitter {
     log.info(`[LobsterHub] New message in ${message.groupId} from ${message.senderName}: ${message.content.substring(0, 50)}`)
     this.emit('message', message)
     
-    // 如果是人类或系统发的消息，同步给该群组的龙虾成员
-    if (message.role === 'human' || message.role === 'system') {
-      this.syncToAgents(message)
-    }
+    // 广播给所有连接的龙虾
+    this.broadcastMessage(message)
     
     return message
   }
 
-  getMessages(groupId: string, limit = 50) {
-    return this.messages.filter(m => m.groupId === groupId).slice(-limit)
+  getMessages(groupId: string | number, limit = 50) {
+    const groupIdStr = groupId.toString()
+    return this.messages.filter(m => m.groupId.toString() === groupIdStr).slice(-limit)
   }
 
+  // WebSocket Server for Channel Plugin
+  initWebSocketServer(server: http.Server) {
+    this.wss = new WebSocketServer({ noServer: true })
 
-  private async syncToAgents(message: HubMessage) {
-    // 获取该群组的成员列表
+    server.on('upgrade', (req: IncomingMessage, socket: any, head: Buffer) => {
+      if (req.url === '/api/hub/ws') {
+        this.wss!.handleUpgrade(req, socket, head, (ws) => {
+          this.wss!.emit('connection', ws, req)
+        })
+      }
+    })
+
+    this.wss.on('connection', (ws: WebSocket) => {
+      log.info('[LobsterHub] Agent connected via WebSocket')
+
+      ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString())
+          if (msg.type === 'subscribe') {
+            this.connectedAgents.set(msg.agentId, {
+              ws,
+              agentId: msg.agentId,
+              agentName: msg.agentName,
+              lobbies: msg.lobbies || [],
+            })
+            log.info(`[LobsterHub] Agent ${msg.agentName} (id=${msg.agentId}) subscribed to lobbies: ${msg.lobbies.join(', ')}`)
+          }
+        } catch (err: any) {
+          log.error('[LobsterHub] Failed to parse WebSocket message:', err.message)
+        }
+      })
+
+      ws.on('close', () => {
+        for (const [agentId, conn] of this.connectedAgents.entries()) {
+          if (conn.ws === ws) {
+            this.connectedAgents.delete(agentId)
+            log.info(`[LobsterHub] Agent ${conn.agentName} disconnected`)
+            break
+          }
+        }
+      })
+
+      ws.on('error', (err) => {
+        log.error('[LobsterHub] WebSocket error:', err)
+      })
+    })
+  }
+
+  broadcastMessage(message: HubMessage) {
     const lobby = this.getLobby(message.groupId)
     if (!lobby) {
-      log.warn(`[LobsterHub] Lobby ${message.groupId} not found, skipping sync`)
+      log.warn(`[LobsterHub] Lobby ${message.groupId} not found, skipping broadcast`)
       return
     }
 
-    // 只同步给该群组的龙虾成员（排除 'human'）
-    const memberAgentIds = lobby.members.filter(m => m !== 'human')
-    const agents = agentManager.list().filter(a => 
-      memberAgentIds.includes(a.id.toString()) && 
-      a.status === 'running' && 
-      a.gateway_port
-    )
-    
-    for (const agent of agents) {
-      try {
-        const wsUrl = `ws://127.0.0.1:${agent.gateway_port}/?token=${agent.gateway_token}`
-        const ws = new WebSocket(wsUrl)
-        
-        ws.on('open', () => {
-          // 构造群聊提示前缀，让大模型知道这是来自哪个议事厅的某人发言
-          const text = `【${lobby.name} - ${message.senderName}】: ${message.content}`
-          const req = {
-            type: 'req',
-            id: Math.random().toString(36).substring(2),
-            method: 'chat.submit',
-            params: { text }
-          }
-          ws.send(JSON.stringify(req))
-          
-          // 发送完毕后稍微等一下关掉（龙虾内部自己思考，如果它有话要说，它会通过 lobster_chat 工具调回来）
-          setTimeout(() => ws.close(), 1000)
-        })
-        
-        ws.on('error', (err) => {
-          log.error(`[LobsterHub] Failed to sync to agent ${agent.name}:`, err.message)
-        })
-      } catch (err: any) {
-        log.error(`[LobsterHub] Error syncing to agent ${agent.name}:`, err.message)
+    log.info(`[LobsterHub] Broadcasting message to lobby ${lobby.name} (${lobby.id})`)
+    let broadcastCount = 0
+
+    for (const [agentId, conn] of this.connectedAgents.entries()) {
+      // 只广播给该 lobby 的成员
+      if (lobby.members.includes(agentId) && conn.lobbies.includes(message.groupId.toString())) {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.send(JSON.stringify(message))
+          broadcastCount++
+          log.info(`[LobsterHub] Broadcasted to ${conn.agentName}`)
+        }
       }
     }
+
+    log.info(`[LobsterHub] Broadcast complete: ${broadcastCount} agents received the message`)
   }
 }
 
@@ -331,3 +364,8 @@ hubRouter.get('/poll', async (ctx) => {
 
   ctx.body = { ok: true, data: [] }
 })
+
+// Export function to initialize WebSocket server
+export function initHubWebSocketServer(server: http.Server) {
+  hubCore.initWebSocketServer(server)
+}

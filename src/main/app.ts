@@ -5,6 +5,7 @@ import { getGateway } from '@main/gateway/Gateway'
 import { createMainWindow, getMainWindow } from '@main/window'
 import { initDataDir } from '@main/services/jsonl-store'
 import { log } from '@main/utils/logger'
+import { initHubWebSocketServer } from '@main/server/hubServer'
 
 import { systemMethods } from '@main/gateway/methods/system'
 import { agentsMethods } from '@main/gateway/methods/agents'
@@ -29,8 +30,15 @@ export async function initApp(): Promise<void> {
   initDataDir()
 
   // 2. HttpServer
-  new HttpServer()
+  const httpServer = new HttpServer()
   log.info('HttpServer started')
+
+  // 2.5 Initialize HubServer WebSocket
+  const httpServerInstance = httpServer.getHttpServer()
+  if (httpServerInstance) {
+    initHubWebSocketServer(httpServerInstance)
+    log.info('HubServer WebSocket initialized')
+  }
 
   // 3. Gateway + methods
   const gateway = getGateway()

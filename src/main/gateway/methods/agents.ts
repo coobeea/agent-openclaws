@@ -18,7 +18,12 @@ export const agentsMethods: MethodGroup = {
       (p.role as 'master' | 'worker') || 'worker',
       String(p.description || ''),
       String(p.gitea_repo || ''),
-      p.model ? String(p.model) : undefined
+      p.model ? String(p.model) : undefined,
+      {
+        feishu_enabled: Boolean(p.feishu_enabled),
+        feishu_app_id: p.feishu_app_id ? String(p.feishu_app_id) : undefined,
+        feishu_app_secret: p.feishu_app_secret ? String(p.feishu_app_secret) : undefined,
+      }
     ),
 
     delete: async (p) => {

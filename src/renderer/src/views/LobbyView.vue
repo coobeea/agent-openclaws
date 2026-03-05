@@ -424,7 +424,7 @@ let lastTimestamp = 0
 
 const currentMessages = computed(() => {
   if (!selectedLobby.value) return []
-  return messages.value.filter(m => m.groupId === selectedLobby.value!.id.toString())
+  return messages.value.filter(m => m.groupId.toString() === selectedLobby.value!.id.toString())
 })
 
 const availableAgents = computed(() => {

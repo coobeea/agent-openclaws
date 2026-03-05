@@ -24,7 +24,15 @@ export class GatewayServer {
     this.onMessage = opts.onMessage
     const httpSrv = opts.httpServer.getHttpServer()
 
-    this.wss = new WebSocketServer({ server: httpSrv, path: '/gateway/ws' })
+    this.wss = new WebSocketServer({ noServer: true })
+
+    httpSrv.on('upgrade', (req, socket, head) => {
+      if (req.url === '/gateway/ws') {
+        this.wss!.handleUpgrade(req, socket as any, head, (ws) => {
+          this.wss!.emit('connection', ws, req)
+        })
+      }
+    })
 
     this.wss.on('connection', (ws) => {
       const meta: ClientMeta = { connectionId: randomUUID(), connectedAt: Date.now(), isAlive: true }

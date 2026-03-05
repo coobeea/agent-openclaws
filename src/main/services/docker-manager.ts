@@ -83,7 +83,18 @@ export const dockerManager = {
   ): Promise<{ id: string; fullId: string }> {
     const image = configStore.get('docker.workerImage') || 'openclaw:local'
     const networkName = configStore.get('docker.network') || 'openclaws-net'
-    const containerName = `openclaws-${name}`
+    
+    // Docker 容器名称只能包含 [a-zA-Z0-9][a-zA-Z0-9_.-]*
+    // 移除或转换不支持的字符（如中文）
+    const safeName = name
+      .replace(/[^\x00-\x7F]/g, '') // 移除非 ASCII 字符（中文等）
+      .replace(/[^a-zA-Z0-9_.-]/g, '-') // 其他字符转为连字符
+      .replace(/^[^a-zA-Z0-9]+/, '') // 开头必须是字母或数字
+      .replace(/-+/g, '-') // 合并多个连字符
+      .toLowerCase()
+      || 'agent' // 如果全是中文，使用默认名
+    
+    const containerName = `openclaws-${safeName}`
 
     await this.ensureNetwork()
 

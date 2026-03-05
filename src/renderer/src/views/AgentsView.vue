@@ -28,7 +28,16 @@ const providers = ref<ModelProvider[]>([])
 const giteaRepos = ref<string[]>([])
 const loading = ref(false)
 const showCreate = ref(false)
-const createForm = ref({ name: '', role: 'worker', description: '', gitea_repo: '', model: '' })
+const createForm = ref({ 
+  name: '', 
+  role: 'worker', 
+  description: '', 
+  gitea_repo: '', 
+  model: '',
+  feishu_enabled: false,
+  feishu_app_id: '',
+  feishu_app_secret: ''
+})
 
 const selectedAgent = ref<Agent | null>(null)
 const rightTab = ref<'files' | 'logs'>('files')
@@ -94,7 +103,16 @@ async function createAgent() {
     await agentsApi.create(createForm.value)
     showCreate.value = false
     const currentModel = createForm.value.model
-    createForm.value = { name: '', role: 'worker', description: '', gitea_repo: giteaRepos.value[0] || '', model: currentModel }
+    createForm.value = { 
+      name: '', 
+      role: 'worker', 
+      description: '', 
+      gitea_repo: giteaRepos.value[0] || '', 
+      model: currentModel,
+      feishu_enabled: false,
+      feishu_app_id: '',
+      feishu_app_secret: ''
+    }
     await loadAgents()
   } catch (e: any) {
     errorMsg.value = e.message || '创建失败'
@@ -297,6 +315,50 @@ const statusMap: Record<string, { cls: string; label: string }> = {
                 <span>未获取到仓库列表，请手动输入或检查 Gitea 设置</span>
               </p>
             </div>
+
+            <!-- 飞书配置 -->
+            <div class="border border-border/30 rounded-xl p-4 bg-surface-variant/30">
+              <div class="flex items-center justify-between mb-3">
+                <label class="text-sm font-semibold text-foreground/90 flex items-center gap-2">
+                  <span class="i-carbon-cloud text-info" />
+                  启用飞书集成 <span class="text-muted-foreground font-normal text-xs">(可选)</span>
+                </label>
+                <button
+                  class="w-12 h-6 rounded-full transition-colors relative"
+                  :class="createForm.feishu_enabled ? 'bg-info' : 'bg-muted'"
+                  @click="createForm.feishu_enabled = !createForm.feishu_enabled"
+                >
+                  <span
+                    class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                    :class="createForm.feishu_enabled ? 'translate-x-6' : 'translate-x-0.5'"
+                  />
+                </button>
+              </div>
+              <div v-if="createForm.feishu_enabled" class="space-y-3 pt-2">
+                <div>
+                  <label class="block text-xs text-muted-foreground mb-1.5">飞书 App ID <span class="text-error">*</span></label>
+                  <input 
+                    v-model="createForm.feishu_app_id" 
+                    class="w-full px-3 py-2 bg-input-background border border-input/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info/50 transition-all" 
+                    placeholder="cli_xxxxxxxxxx" 
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs text-muted-foreground mb-1.5">飞书 App Secret <span class="text-error">*</span></label>
+                  <input 
+                    v-model="createForm.feishu_app_secret"
+                    type="password"
+                    class="w-full px-3 py-2 bg-input-background border border-input/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-info/50 transition-all" 
+                    placeholder="请输入 App Secret" 
+                  />
+                </div>
+                <p class="text-xs text-muted-foreground flex items-start gap-1.5 pt-1">
+                  <span class="i-carbon-information text-info mt-0.5" />
+                  <span>在飞书开放平台创建应用后获取，用于该龙虾专属的飞书机器人</span>
+                </p>
+              </div>
+            </div>
+
             <div>
               <label class="block text-sm font-semibold mb-2 text-foreground/90">描述 <span class="text-muted-foreground font-normal">(可选)</span></label>
               <textarea 

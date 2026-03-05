@@ -7,6 +7,7 @@ import { dockerManager } from './docker-manager'
 import { configStore } from './config-store'
 import { getSoulMd, getAgentsMd, generateOpenClawJson } from '@main/templates/openclaw-config'
 import { log } from '@main/utils/logger'
+import { hubCore } from '@main/server/hubServer'
 
 export interface Agent {
   id: number
@@ -23,6 +24,10 @@ export interface Agent {
   health_ok: boolean
   created_at: string
   updated_at: string
+  // 飞书配置（可选）
+  feishu_enabled?: boolean
+  feishu_app_id?: string
+  feishu_app_secret?: string
 }
 
 const agents = new JsonlCollection<Agent>('agents.jsonl')
@@ -32,7 +37,13 @@ const WORKSPACES_ROOT = () => {
   return custom ? custom : join(app.getPath('userData'), 'workspaces')
 }
 
-function ensureWorkspace(name: string, role: 'master' | 'worker' | 'qa', model?: string, token?: string): string {
+function ensureWorkspace(
+  name: string, 
+  role: 'master' | 'worker' | 'qa', 
+  model?: string, 
+  token?: string, 
+  lobbies?: string[]
+): string {
   const root = join(WORKSPACES_ROOT(), name)
   const configDir = join(root, '.openclaw')
   const workspaceDir = join(root, 'workspace')
@@ -54,7 +65,13 @@ function ensureWorkspace(name: string, role: 'master' | 'worker' | 'qa', model?:
   const configPath = join(configDir, 'openclaw.json')
   
   // 总是覆盖或者如果不存在则创建，保证配置（如模型、token）是最新的
-  const cfg = generateOpenClawJson({ agentName: name, role, gatewayToken: resolvedToken, model })
+  const cfg = generateOpenClawJson({ 
+    agentName: name, 
+    role, 
+    gatewayToken: resolvedToken, 
+    model,
+    lobbies 
+  })
   writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8')
 
   return root
@@ -77,7 +94,18 @@ export const agentManager = {
     return agents.get(id)
   },
 
-  create(name: string, role: 'master' | 'worker' | 'qa' = 'worker', description = '', giteaRepo = '', model?: string): Agent {
+  create(
+    name: string, 
+    role: 'master' | 'worker' | 'qa' = 'worker', 
+    description = '', 
+    giteaRepo = '', 
+    model?: string,
+    feishuConfig?: {
+      feishu_enabled?: boolean
+      feishu_app_id?: string
+      feishu_app_secret?: string
+    }
+  ): Agent {
     if (!giteaRepo) throw new Error('必须关联一个 Gitea 仓库')
     
     if (role === 'master') {
@@ -90,7 +118,7 @@ export const agentManager = {
 
     const port = nextGatewayPort()
     const token = randomBytes(16).toString('hex')
-    const ws = ensureWorkspace(name, role, model, token)
+    const ws = ensureWorkspace(name, role, model, token, undefined, feishuConfig)
 
     return agents.insert({
       name,
@@ -104,6 +132,9 @@ export const agentManager = {
       gitea_repo: giteaRepo || null,
       model: model || null,
       health_ok: false,
+      feishu_enabled: feishuConfig?.feishu_enabled,
+      feishu_app_id: feishuConfig?.feishu_app_id,
+      feishu_app_secret: feishuConfig?.feishu_app_secret,
     } as Omit<Agent, 'id'>)
   },
 
@@ -123,9 +154,31 @@ export const agentManager = {
     const agent = agents.get(id)
     if (!agent) throw new Error('Agent not found')
 
+    // 查询该 agent 所属的 lobbies
+    const allLobbies = hubCore.listLobbies()
+    const agentLobbies = allLobbies
+      .filter(l => l.members.includes(agent.id.toString()))
+      .map(l => l.id.toString())
+
+    log.info(`[AgentManager] Agent ${agent.name} is member of lobbies: ${agentLobbies.join(', ')}`)
+
     const port = agent.gateway_port || nextGatewayPort()
     const token = agent.gateway_token || randomBytes(16).toString('hex')
-    const ws = ensureWorkspace(agent.name, agent.role, agent.model || undefined, token)
+    
+    const feishuConfig = agent.feishu_enabled ? {
+      feishu_enabled: agent.feishu_enabled,
+      feishu_app_id: agent.feishu_app_id,
+      feishu_app_secret: agent.feishu_app_secret
+    } : undefined
+    
+    const ws = ensureWorkspace(
+      agent.name, 
+      agent.role, 
+      agent.model || undefined, 
+      token,
+      agentLobbies,
+      feishuConfig
+    )
 
     try {
       const giteaUrl = configStore.get('gitea.url') || 'http://localhost:13000'
@@ -137,6 +190,7 @@ export const agentManager = {
         GITEA_TOKEN: giteaToken,
         AGENT_NAME: agent.name,
         AGENT_ID: agent.id.toString(),
+        LOBSTER_HUB_URL: 'http://host.docker.internal:8765/api/hub/messages',
       }
 
       const info = await dockerManager.createOpenClawContainer(agent.name, port, ws, env)
